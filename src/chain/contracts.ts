@@ -6,27 +6,45 @@ export const WORLD_PACKAGE =
 
 export const SUI_NETWORK = (process.env.SUI_NETWORK ?? "testnet") as "testnet" | "mainnet" | "devnet";
 
-// Event type strings for subscription filters
+export const SUI_GRAPHQL_ENDPOINT =
+  process.env.SUI_GRAPHQL_ENDPOINT ?? "https://graphql.testnet.sui.io/graphql";
+
+// Owner config
+export const OWNER_WALLET = process.env.OWNER_WALLET ?? "";
+export const OWNER_PRIVATE_KEY = process.env.OWNER_PRIVATE_KEY ?? "";
+
+// SSU Extension
+export const SSU_EXT_PKG =
+  process.env.SSU_EXT_PKG ??
+  "0x6ff020848c52633e061fd84e6f45c4a1f9d2df97ba94af625649454324c237a8";
+export const SSU_EXT_CONFIG =
+  process.env.SSU_EXT_CONFIG ??
+  "0xd325d0be956235ba700eeccead13de161ef9569470a21bbc9b47ee1ae7f4f933";
+
+// Turret Extension
+export const TURRET_EXT_PKG = process.env.TURRET_EXT_PKG ?? "";
+export const TURRET_EXT_CONFIG = process.env.TURRET_EXT_CONFIG ?? "";
+
+// Event type strings
 export const KILLMAIL_EVENT_TYPE = `${WORLD_PACKAGE}::killmail::KillmailCreatedEvent`;
 
-// Parsed kill mail event data (matches KillmailCreatedEvent Move struct)
-export interface KillMailEvent {
-  key: TenantItemId;
-  killer_id: TenantItemId;
-  victim_id: TenantItemId;
-  reported_by_character_id: TenantItemId;
-  loss_type: string; // "SHIP" | "STRUCTURE"
-  kill_timestamp: string; // u64 as string
-  solar_system_id: TenantItemId;
-}
+// --- Types ---
 
-// TenantItemId is a Move struct — Sui SDK will parse it as an object
 export interface TenantItemId {
   tenant_id: string;
   item_id: string;
 }
 
-// Normalized kill data for our system
+export interface KillMailEvent {
+  key: TenantItemId;
+  killer_id: TenantItemId;
+  victim_id: TenantItemId;
+  reported_by_character_id: TenantItemId;
+  loss_type: string;
+  kill_timestamp: string;
+  solar_system_id: TenantItemId;
+}
+
 export interface KillMailData {
   killerId: string;
   victimId: string;
@@ -34,4 +52,29 @@ export interface KillMailData {
   killTimestamp: number;
   solarSystemId: string;
   raw: KillMailEvent;
+}
+
+export interface AccessRulesData {
+  depositAllowlist: string[];
+  withdrawAllowlist: string[];
+  depositTribes: number[];
+  withdrawTribes: number[];
+  openDeposit: boolean;
+  openWithdraw: boolean;
+}
+
+export interface AssemblyStatus {
+  id: string;
+  type: string;
+  isOnline: boolean;
+  name: string;
+  description: string;
+  metadata: Record<string, any>;
+}
+
+export interface CharacterData {
+  characterId: string;
+  name: string;
+  tribeId: number;
+  wallet: string;
 }

@@ -4,6 +4,8 @@ import type { EventBus } from "../events.ts";
 import type { Queries } from "../db/queries.ts";
 import type { ThreatManager } from "../agent/threats.ts";
 import { assembleContext } from "../agent/glados.ts";
+import { executeAction, type AIAction } from "../chain/actions.ts";
+import { fetchAssemblyStatus, fetchCharacterByWallet, fetchKillStats } from "../chain/assembly.ts";
 
 const HTML_PATH = resolve(import.meta.dir, "index.html");
 
@@ -28,7 +30,10 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
   const { bus, queries, threats } = deps;
   const wsClients = new Set<any>();
 
-  const html = readFileSync(HTML_PATH, "utf-8");
+  // Read HTML fresh on each request in dev — no stale cache after edits
+  const isDev = process.env.NODE_ENV !== "production";
+  const cachedHtml = isDev ? null : readFileSync(HTML_PATH, "utf-8");
+  const getHtml = () => cachedHtml ?? readFileSync(HTML_PATH, "utf-8");
 
   const server = Bun.serve({
     port,
@@ -90,38 +95,74 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
         }
       }
 
-      // POST /api/llm-proxy — stateless OpenAI CORS proxy
+      // POST /api/llm-models — fetch model list from a local/custom LLM endpoint
+      if (url.pathname === "/api/llm-models" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as { baseUrl: string; apiKey?: string };
+          const modelsUrl = body.baseUrl.replace(/\/+$/, "") + "/models";
+
+          const headers: Record<string, string> = {};
+          if (body.apiKey) headers["Authorization"] = `Bearer ${body.apiKey}`;
+
+          const modelsRes = await fetch(modelsUrl, { headers });
+          const data = await modelsRes.json();
+          return Response.json(data, {
+            status: modelsRes.status,
+            headers: CORS_HEADERS,
+          });
+        } catch (err) {
+          return Response.json(
+            { error: "Failed to fetch models: " + (err as Error).message },
+            { status: 502, headers: CORS_HEADERS }
+          );
+        }
+      }
+
+      // POST /api/llm-proxy — stateless CORS proxy for LLM providers
       if (url.pathname === "/api/llm-proxy" && req.method === "POST") {
         try {
           const body = (await req.json()) as {
             provider: string;
-            apiKey: string;
+            apiKey?: string;
+            baseUrl?: string;
             model: string;
+            maxTokens?: number;
             systemPrompt: string;
             messages: { role: string; content: string }[];
           };
 
-          const targetUrl = PROXY_TARGETS[body.provider];
+          // Resolve target URL: known providers use fixed URLs, others pass baseUrl
+          let targetUrl = PROXY_TARGETS[body.provider];
+          if (!targetUrl && body.baseUrl) {
+            // Custom/local: append /chat/completions if not already there
+            targetUrl = body.baseUrl.endsWith("/chat/completions")
+              ? body.baseUrl
+              : body.baseUrl.replace(/\/+$/, "") + "/chat/completions";
+          }
           if (!targetUrl) {
             return Response.json(
-              { error: `Unknown provider: ${body.provider}` },
+              { error: `No target URL for provider: ${body.provider}` },
               { status: 400, headers: CORS_HEADERS }
             );
           }
 
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (body.apiKey) {
+            headers["Authorization"] = `Bearer ${body.apiKey}`;
+          }
+
           const llmRes = await fetch(targetUrl, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${body.apiKey}`,
-            },
+            headers,
             body: JSON.stringify({
               model: body.model,
               messages: [
                 { role: "system", content: body.systemPrompt },
                 ...body.messages,
               ],
-              max_tokens: 512,
+              max_tokens: body.maxTokens || 2048,
               temperature: 0.8,
             }),
           });
@@ -133,14 +174,61 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
           });
         } catch (err) {
           return Response.json(
-            { error: "Proxy request failed" },
+            { error: "Proxy request failed: " + (err as Error).message },
             { status: 502, headers: CORS_HEADERS }
           );
         }
       }
 
+      // GET /api/assembly — fetch assembly status from Sui
+      if (url.pathname === "/api/assembly" && req.method === "GET") {
+        const id = url.searchParams.get("id");
+        if (!id) {
+          return Response.json({ error: "Missing ?id param" }, { status: 400, headers: CORS_HEADERS });
+        }
+        const status = await fetchAssemblyStatus(id);
+        return Response.json(status ?? { error: "Not found" }, { headers: CORS_HEADERS });
+      }
+
+      // GET /api/player — character lookup from Sui
+      if (url.pathname === "/api/player" && req.method === "GET") {
+        const wallet = url.searchParams.get("wallet");
+        if (!wallet) {
+          return Response.json({ error: "Missing ?wallet param" }, { status: 400, headers: CORS_HEADERS });
+        }
+        const character = await fetchCharacterByWallet(wallet);
+        const stats = character?.characterId
+          ? await fetchKillStats(character.characterId)
+          : { kills: 0, deaths: 0 };
+        return Response.json({ ...character, ...stats }, { headers: CORS_HEADERS });
+      }
+
+      // POST /api/actions/execute — execute AI-decided onchain actions
+      if (url.pathname === "/api/actions/execute" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as {
+            actions: AIAction[];
+            assemblyId: string;
+          };
+
+          const results = [];
+          for (const action of body.actions) {
+            const result = await executeAction(action, body.assemblyId);
+            results.push(result);
+            bus.emit("action", { ...action, ...result });
+          }
+
+          return Response.json({ results }, { headers: CORS_HEADERS });
+        } catch (err) {
+          return Response.json(
+            { error: (err as Error).message },
+            { status: 500, headers: CORS_HEADERS }
+          );
+        }
+      }
+
       // Serve dashboard
-      return new Response(html, {
+      return new Response(getHtml(), {
         headers: { "Content-Type": "text/html" },
       });
     },
@@ -177,6 +265,7 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
   bus.on("threat", (data) => broadcast("threat", data));
   bus.on("chat", (data) => broadcast("chat", data));
   bus.on("kill", (data) => broadcast("kill", data));
+  bus.on("action", (data) => broadcast("action", data));
 
   console.log(`[dashboard] http://localhost:${port}`);
   return server;

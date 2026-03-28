@@ -4,12 +4,16 @@ import { createChainListener } from "./chain/listener.ts";
 import { createThreatManager } from "./agent/threats.ts";
 import { createEventBus } from "./events.ts";
 import { startDashboard } from "./dashboard/server.ts";
+import { AI_NAME, AI_TAGLINE } from "./agent/glados.ts";
 
+const title = `MISSION CONTROL — ${AI_NAME} Oversight v0.1`;
+const tagline = `"${AI_TAGLINE}"`;
+const width = Math.max(title.length, tagline.length);
 console.log(`
-╔═══════════════════════════════════════════╗
-║  MISSION CONTROL — GladOS Oversight v0.1  ║
-║  "I'm doing science and I'm still alive"  ║
-╚═══════════════════════════════════════════╝
+╔${"═".repeat(width + 4)}╗
+║  ${title.padEnd(width)}  ║
+║  ${tagline.padEnd(width)}  ║
+╚${"═".repeat(width + 4)}╝
 `);
 
 // 1. Database

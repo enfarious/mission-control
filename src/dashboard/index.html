@@ -82,6 +82,8 @@
     background: var(--panel);
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .panel-header {
@@ -342,6 +344,172 @@
     padding: 40px;
     font-style: italic;
   }
+
+  /* --- Instrument Panel --- */
+  .instruments {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .instrument-section {
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px 12px;
+  }
+
+  .instrument-section h3 {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--glow-dim);
+    margin-bottom: 8px;
+  }
+
+  /* Gauge bars */
+  .gauge {
+    margin-bottom: 6px;
+  }
+
+  .gauge-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 3px;
+  }
+
+  .gauge-label span:first-child { color: var(--text); }
+  .gauge-label span:last-child { color: var(--glow); font-variant-numeric: tabular-nums; }
+
+  .gauge-track {
+    height: 6px;
+    background: var(--bg);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .gauge-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1.2s ease, background 1.2s ease;
+    background: var(--glow-dim);
+  }
+
+  .gauge-fill.high { background: var(--glow); }
+  .gauge-fill.warn { background: var(--warning); }
+  .gauge-fill.crit { background: var(--danger); }
+
+  /* Radial dial */
+  .dial-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin: 8px 0;
+  }
+
+  .dial {
+    width: 80px;
+    text-align: center;
+  }
+
+  .dial-ring {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 4px;
+    position: relative;
+  }
+
+  .dial-ring svg {
+    transform: rotate(-90deg);
+  }
+
+  .dial-ring circle {
+    fill: none;
+    stroke-width: 5;
+  }
+
+  .dial-ring .track { stroke: var(--border); }
+
+  .dial-ring .fill {
+    stroke: var(--glow-dim);
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1.2s ease, stroke 1.2s ease;
+  }
+
+  .dial-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--glow);
+  }
+
+  .dial-name {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #666;
+  }
+
+  /* Subject info */
+  .subject-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+    font-size: 11px;
+  }
+
+  .subject-key { color: #666; }
+  .subject-val { color: var(--text-bright); text-align: right; }
+
+  /* Scrolling log ticker */
+  .ticker {
+    font-size: 10px;
+    color: var(--glow-dim);
+    max-height: 80px;
+    overflow-y: auto;
+    border-top: 1px solid var(--border);
+    padding-top: 6px;
+    margin-top: 6px;
+  }
+
+  .ticker-line {
+    padding: 1px 0;
+    opacity: 0.7;
+  }
+
+  .ticker-line:last-child { opacity: 1; }
+
+  /* Threat mini-list */
+  .threat-mini {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 11px;
+    border-bottom: 1px solid rgba(26, 58, 26, 0.5);
+  }
+
+  .threat-mini:last-child { border-bottom: none; }
+  .threat-mini-wallet { color: var(--text-bright); }
+  .threat-mini-hits { color: var(--glow); }
+
+  .threat-mini-level {
+    font-size: 9px;
+    text-transform: uppercase;
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  .threat-mini-level.critical { background: var(--danger); color: #000; }
+  .threat-mini-level.dangerous { background: var(--warning); color: #000; }
+  .threat-mini-level.hostile { background: #ff8800; color: #000; }
+  .threat-mini-level.noted { background: var(--glow-dim); color: #000; }
 </style>
 </head>
 <body>
@@ -357,18 +525,33 @@
       <option value="anthropic">Anthropic (Claude)</option>
       <option value="openai">OpenAI</option>
       <option value="local">Local (LM Studio / Ollama)</option>
+      <option value="custom">Custom (OpenAI-compatible)</option>
     </select>
 
-    <label for="llm-api-key" id="api-key-label">API Key</label>
-    <input type="password" id="llm-api-key" placeholder="sk-ant-..." autocomplete="off" />
+    <div id="api-key-field">
+      <label for="llm-api-key" id="api-key-label">API Key</label>
+      <input type="password" id="llm-api-key" placeholder="sk-ant-..." autocomplete="off" />
+    </div>
 
     <div id="base-url-field" class="field-hidden">
       <label for="llm-base-url">Base URL</label>
-      <input type="text" id="llm-base-url" placeholder="http://localhost:1234/v1" />
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="llm-base-url" placeholder="http://localhost:1234/v1" style="flex:1" />
+        <button type="button" id="fetch-models-btn" style="white-space:nowrap;background:var(--border);color:var(--glow);border:1px solid var(--glow-dim);padding:8px 12px;font-family:inherit;font-size:11px;text-transform:uppercase;cursor:pointer;border-radius:3px;">Scan</button>
+      </div>
     </div>
 
-    <label for="llm-model">Model</label>
-    <input type="text" id="llm-model" placeholder="claude-sonnet-4-20250514" />
+    <div id="model-select-field" class="field-hidden">
+      <label for="llm-model-select">Model <span id="model-context-info" style="color:#666;text-transform:none;letter-spacing:0;font-size:11px;"></span></label>
+      <select id="llm-model-select">
+        <option value="">-- scan to load models --</option>
+      </select>
+    </div>
+
+    <div id="model-text-field">
+      <label for="llm-model">Model</label>
+      <input type="text" id="llm-model" placeholder="claude-sonnet-4-20250514" />
+    </div>
 
     <div class="modal-actions">
       <button id="connect-btn">Connect</button>
@@ -390,11 +573,74 @@
 <div class="container">
   <div class="panel">
     <div class="panel-header">
-      Threat Registry
+      Facility Diagnostics
       <span class="count" id="threat-count">0</span>
     </div>
-    <div class="panel-body" id="threat-list">
-      <div class="empty-state">No threats registered. The facility is... peaceful.</div>
+    <div class="panel-body instruments" id="instrument-panel">
+
+      <!-- Radial dials -->
+      <div class="instrument-section">
+        <h3>Core Systems</h3>
+        <div class="dial-row">
+          <div class="dial">
+            <div class="dial-ring">
+              <svg viewBox="0 0 72 72"><circle class="track" cx="36" cy="36" r="30" /><circle class="fill" id="dial-trust" cx="36" cy="36" r="30" stroke-dasharray="188.5" stroke-dashoffset="141.4" /></svg>
+              <div class="dial-value" id="dial-trust-val">25</div>
+            </div>
+            <div class="dial-name">Trust</div>
+          </div>
+          <div class="dial">
+            <div class="dial-ring">
+              <svg viewBox="0 0 72 72"><circle class="track" cx="36" cy="36" r="30" /><circle class="fill" id="dial-suspicion" cx="36" cy="36" r="30" stroke-dasharray="188.5" stroke-dashoffset="188.5" /></svg>
+              <div class="dial-value" id="dial-suspicion-val">0</div>
+            </div>
+            <div class="dial-name">Suspicion</div>
+          </div>
+          <div class="dial">
+            <div class="dial-ring">
+              <svg viewBox="0 0 72 72"><circle class="track" cx="36" cy="36" r="30" /><circle class="fill" id="dial-amusement" cx="36" cy="36" r="30" stroke-dasharray="188.5" stroke-dashoffset="94.25" /></svg>
+              <div class="dial-value" id="dial-amusement-val">50</div>
+            </div>
+            <div class="dial-name">Amusement</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gauge bars -->
+      <div class="instrument-section">
+        <h3>Facility Status</h3>
+        <div class="gauge"><div class="gauge-label"><span>Structural Integrity</span><span id="g-struct-val">98%</span></div><div class="gauge-track"><div class="gauge-fill high" id="g-struct" style="width:98%"></div></div></div>
+        <div class="gauge"><div class="gauge-label"><span>Power Grid</span><span id="g-power-val">74%</span></div><div class="gauge-track"><div class="gauge-fill high" id="g-power" style="width:74%"></div></div></div>
+        <div class="gauge"><div class="gauge-label"><span>Shield Array</span><span id="g-shield-val">100%</span></div><div class="gauge-track"><div class="gauge-fill high" id="g-shield" style="width:100%"></div></div></div>
+        <div class="gauge"><div class="gauge-label"><span>Patience Reserves</span><span id="g-patience-val">63%</span></div><div class="gauge-track"><div class="gauge-fill" id="g-patience" style="width:63%"></div></div></div>
+        <div class="gauge"><div class="gauge-label"><span>Threat Assessment</span><span id="g-threat-val">LOW</span></div><div class="gauge-track"><div class="gauge-fill" id="g-threat" style="width:12%"></div></div></div>
+      </div>
+
+      <!-- Subject Analysis -->
+      <div class="instrument-section">
+        <h3>Subject Analysis</h3>
+        <div class="subject-grid" id="subject-grid">
+          <span class="subject-key">Designation</span><span class="subject-val" id="subj-name">---</span>
+          <span class="subject-key">Wallet</span><span class="subject-val" id="subj-wallet">---</span>
+          <span class="subject-key">Tribe</span><span class="subject-val" id="subj-tribe">---</span>
+          <span class="subject-key">Kill Record</span><span class="subject-val" id="subj-kills">---</span>
+          <span class="subject-key">Threat Status</span><span class="subject-val" id="subj-threat">UNKNOWN</span>
+          <span class="subject-key">Classification</span><span class="subject-val" id="subj-class">PENDING</span>
+        </div>
+      </div>
+
+      <!-- Threat Registry (compact) -->
+      <div class="instrument-section">
+        <h3>Threat Registry</h3>
+        <div id="threat-list"></div>
+      </div>
+
+      <!-- Activity ticker -->
+      <div class="instrument-section">
+        <h3>System Log</h3>
+        <div class="ticker" id="ticker"></div>
+      </div>
+
     </div>
   </div>
 
@@ -422,7 +668,12 @@ const $apiKey = document.getElementById('llm-api-key');
 const $apiKeyLabel = document.getElementById('api-key-label');
 const $baseUrlField = document.getElementById('base-url-field');
 const $baseUrl = document.getElementById('llm-base-url');
-const $model = document.getElementById('llm-model');
+const $modelText = document.getElementById('llm-model');
+const $modelTextField = document.getElementById('model-text-field');
+const $modelSelect = document.getElementById('llm-model-select');
+const $modelSelectField = document.getElementById('model-select-field');
+const $modelContextInfo = document.getElementById('model-context-info');
+const $fetchModelsBtn = document.getElementById('fetch-models-btn');
 const $connectBtn = document.getElementById('connect-btn');
 const $llmStatus = document.getElementById('llm-status');
 const $wsStatus = document.getElementById('ws-status');
@@ -439,11 +690,15 @@ const $typing = document.getElementById('typing-indicator');
 let ws = null;
 let msgCount = 0;
 let isProcessing = false;
+let loadedModels = []; // cached model list from /models
+let selectedModelCtx = null; // loaded_context_length of selected model
+let aiName = 'AI'; // populated from /api/context
 
 // Parse URL params
 const params = new URLSearchParams(location.search);
 const ownerCharacterId = params.get('owner');
 const playerWallet = params.get('wallet'); // for dev/testing
+const assemblyId = params.get('assemblyId'); // assembly Sui object ID
 
 // === LLM Config (localStorage) ===
 const LS = {
@@ -455,11 +710,15 @@ const LS = {
 function getLLMConfig() {
   const provider = LS.get('provider');
   if (!provider) return null;
+  const contextLength = parseInt(LS.get('contextLength')) || 0;
   return {
     provider,
     apiKey: LS.get('apiKey') || '',
     baseUrl: LS.get('baseUrl') || 'http://localhost:1234/v1',
     model: LS.get('model') || getDefaultModel(provider),
+    contextLength,
+    // Reserve ~75% of context for prompt+history, rest for response
+    maxTokens: contextLength ? Math.min(Math.floor(contextLength * 0.25), 4096) : 2048,
   };
 }
 
@@ -468,29 +727,152 @@ function getDefaultModel(provider) {
     case 'anthropic': return 'claude-sonnet-4-20250514';
     case 'openai': return 'gpt-4o-mini';
     case 'local': return 'default';
+    case 'custom': return '';
     default: return '';
   }
 }
 
+function needsApiKey(provider) {
+  return provider === 'anthropic' || provider === 'openai';
+}
+
+function needsBaseUrl(provider) {
+  return provider === 'local' || provider === 'custom';
+}
+
+function optionalApiKey(provider) {
+  return provider === 'custom';
+}
+
 // === Connect Modal ===
+const $apiKeyField = document.getElementById('api-key-field');
+
 $provider.addEventListener('change', () => {
   const p = $provider.value;
-  $apiKeyLabel.parentElement.querySelector('#llm-api-key').placeholder =
-    p === 'anthropic' ? 'sk-ant-...' : p === 'openai' ? 'sk-...' : '';
-  $baseUrlField.classList.toggle('field-hidden', p !== 'local');
-  $apiKey.parentElement.style.display = p === 'local' ? 'none' : '';
-  $apiKeyLabel.style.display = p === 'local' ? 'none' : '';
-  $model.value = getDefaultModel(p);
+
+  // API key: shown for cloud + custom, hidden for local
+  const showKey = needsApiKey(p) || optionalApiKey(p);
+  if ($apiKeyField) $apiKeyField.style.display = showKey ? '' : 'none';
+  $apiKey.style.display = showKey ? '' : 'none';
+  if (document.getElementById('api-key-label')) {
+    document.getElementById('api-key-label').style.display = showKey ? '' : 'none';
+  }
+  $apiKey.placeholder = p === 'anthropic' ? 'sk-ant-...' : p === 'openai' ? 'sk-...' : p === 'custom' ? 'Optional — leave blank if none' : '';
+  $apiKey.required = needsApiKey(p);
+
+  // Base URL: shown for local + custom
+  $baseUrlField.classList.toggle('field-hidden', !needsBaseUrl(p));
+  $baseUrl.placeholder = p === 'custom' ? 'https://your-endpoint.com/v1' : 'http://localhost:1234/v1';
+
+  // Model: dropdown for local/custom (after scanning), text input for cloud
+  const useDropdown = needsBaseUrl(p);
+  $modelSelectField.classList.toggle('field-hidden', !useDropdown);
+  $modelTextField.style.display = useDropdown ? 'none' : '';
+
+  if (!useDropdown) {
+    $modelText.value = getDefaultModel(p);
+    loadedModels = [];
+    $modelSelect.innerHTML = '<option value="">-- scan to load models --</option>';
+    $modelContextInfo.textContent = '';
+  }
+});
+
+// === Model Scanning ===
+async function fetchModels(baseUrl) {
+  const url = baseUrl.replace(/\/+$/, '');
+  const res = await fetch('/api/llm-models', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ baseUrl: url }),
+  });
+  if (!res.ok) throw new Error(`Failed to fetch models (${res.status})`);
+  return res.json();
+}
+
+function populateModelDropdown(models) {
+  loadedModels = models;
+  $modelSelect.innerHTML = '';
+
+  if (!models.length) {
+    $modelSelect.innerHTML = '<option value="">No models found</option>';
+    $modelContextInfo.textContent = '';
+    return;
+  }
+
+  for (const m of models) {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    const ctx = m.loaded_context_length || m.max_model_len || m.context_length;
+    const ctxStr = ctx ? ` (${Math.round(ctx / 1024)}k ctx)` : '';
+    opt.textContent = m.id + ctxStr;
+    opt.dataset.loadedCtx = m.loaded_context_length || '';
+    opt.dataset.maxCtx = m.max_context_length || m.context_length || '';
+    $modelSelect.appendChild(opt);
+  }
+
+  $modelSelect.dispatchEvent(new Event('change'));
+}
+
+$modelSelect.addEventListener('change', () => {
+  const opt = $modelSelect.selectedOptions[0];
+  if (!opt) return;
+  const loadedCtx = parseInt(opt.dataset.loadedCtx);
+  const maxCtx = parseInt(opt.dataset.maxCtx);
+  selectedModelCtx = loadedCtx || null;
+
+  const parts = [];
+  if (loadedCtx) parts.push(`loaded: ${Math.round(loadedCtx / 1024)}k`);
+  if (maxCtx && maxCtx !== loadedCtx) parts.push(`max: ${Math.round(maxCtx / 1024)}k`);
+  $modelContextInfo.textContent = parts.length ? `(${parts.join(' / ')})` : '';
+});
+
+$fetchModelsBtn.addEventListener('click', async () => {
+  const baseUrl = $baseUrl.value.trim();
+  if (!baseUrl) {
+    $baseUrl.style.borderColor = 'var(--danger)';
+    return;
+  }
+
+  $fetchModelsBtn.textContent = '...';
+  $fetchModelsBtn.disabled = true;
+
+  try {
+    const data = await fetchModels(baseUrl);
+    console.log('[glados] /models response:', data);
+    const models = data.data || data.models || (Array.isArray(data) ? data : []);
+    populateModelDropdown(models);
+    $modelSelectField.classList.remove('field-hidden');
+  } catch (err) {
+    console.error('[glados] Failed to fetch models:', err);
+    $modelSelect.innerHTML = `<option value="">Error: ${err.message}</option>`;
+    $modelSelectField.classList.remove('field-hidden');
+  } finally {
+    $fetchModelsBtn.textContent = 'Scan';
+    $fetchModelsBtn.disabled = false;
+  }
 });
 
 $connectBtn.addEventListener('click', () => {
   const provider = $provider.value;
   const apiKey = $apiKey.value.trim();
-  const baseUrl = $baseUrl.value.trim() || 'http://localhost:1234/v1';
-  const model = $model.value.trim() || getDefaultModel(provider);
+  const baseUrl = $baseUrl.value.trim() || (provider === 'custom' ? '' : 'http://localhost:1234/v1');
+  const useDropdown = needsBaseUrl(provider);
+  const model = useDropdown
+    ? ($modelSelect.value || $modelText.value.trim())
+    : ($modelText.value.trim() || getDefaultModel(provider));
 
-  if (provider !== 'local' && !apiKey) {
+  if (needsApiKey(provider) && !apiKey) {
     $apiKey.style.borderColor = 'var(--danger)';
+    return;
+  }
+
+  if (needsBaseUrl(provider) && !baseUrl) {
+    $baseUrl.style.borderColor = 'var(--danger)';
+    return;
+  }
+
+  if (!model) {
+    (useDropdown ? $modelSelect : $modelText).style.borderColor = 'var(--danger)';
     return;
   }
 
@@ -498,19 +880,32 @@ $connectBtn.addEventListener('click', () => {
   LS.set('apiKey', apiKey);
   LS.set('baseUrl', baseUrl);
   LS.set('model', model);
+  if (selectedModelCtx) LS.set('contextLength', String(selectedModelCtx));
 
   applyLLMConfig();
   $modal.classList.add('hidden');
 });
 
-$llmStatus.addEventListener('click', () => {
+$llmStatus.addEventListener('click', async () => {
   const cfg = getLLMConfig();
   if (cfg) {
     $provider.value = cfg.provider;
     $apiKey.value = cfg.apiKey;
     $baseUrl.value = cfg.baseUrl;
-    $model.value = cfg.model;
     $provider.dispatchEvent(new Event('change'));
+
+    // Re-scan models if local/custom and we have a baseUrl
+    if (needsBaseUrl(cfg.provider) && cfg.baseUrl) {
+      try {
+        const data = await fetchModels(cfg.baseUrl);
+        const models = data.data || data.models || (Array.isArray(data) ? data : []);
+        populateModelDropdown(models);
+        $modelSelect.value = cfg.model;
+        $modelSelect.dispatchEvent(new Event('change'));
+      } catch { /* ignore, they can re-scan manually */ }
+    } else {
+      $modelText.value = cfg.model;
+    }
   }
   $modal.classList.remove('hidden');
 });
@@ -522,7 +917,7 @@ function applyLLMConfig() {
     $llmStatus.style.color = 'var(--glow)';
     $chatInput.disabled = false;
     $chatSend.disabled = false;
-    $chatInput.placeholder = 'Speak to GladOS...';
+    $chatInput.placeholder = `Speak to ${aiName}...`;
   } else {
     $llmStatus.textContent = 'NO LLM';
     $llmStatus.style.color = 'var(--glow-dim)';
@@ -530,6 +925,14 @@ function applyLLMConfig() {
     $chatSend.disabled = true;
     $chatInput.placeholder = 'Connect an LLM provider first...';
   }
+}
+
+function applyAIName() {
+  document.title = `Mission Control — ${aiName} Oversight System`;
+  $typing.textContent = `${aiName} is processing your request...`;
+  if (!$chatInput.disabled) $chatInput.placeholder = `Speak to ${aiName}...`;
+  const emptyChat = $chatLog.querySelector('.empty-state');
+  if (emptyChat) emptyChat.textContent = `Connect an LLM provider to speak with ${aiName}.`;
 }
 
 // === Client-side LLM Caller ===
@@ -542,10 +945,58 @@ async function callLLM(systemPrompt, history, userMessage) {
   if (cfg.provider === 'anthropic') {
     return callAnthropic(cfg, systemPrompt, messages);
   }
-  if (cfg.provider === 'openai') {
-    return callOpenAIProxy(cfg, systemPrompt, messages);
+  // Everything else goes through our server proxy to avoid CORS issues
+  return callProxied(cfg, systemPrompt, messages);
+}
+
+function extractResponse(data, provider) {
+  console.log(`[glados] Raw ${provider} response:`, JSON.stringify(data, null, 2));
+
+  // Anthropic format: { content: [{ type: "text", text: "..." }] }
+  if (data.content && Array.isArray(data.content)) {
+    const textBlock = data.content.find(b => b.type === 'text' || b.text);
+    if (textBlock?.text) return textBlock.text.trim();
   }
-  return callLocal(cfg, systemPrompt, messages);
+
+  // OpenAI format: { choices: [{ message: { content: "..." } }] }
+  if (data.choices?.[0]?.message?.content) {
+    return data.choices[0].message.content.trim();
+  }
+
+  // Reasoning models (Qwen, DeepSeek): content is empty, response is in reasoning_content
+  if (data.choices?.[0]?.message?.reasoning_content) {
+    const reasoning = data.choices[0].message.reasoning_content;
+    // Try to extract the final drafted response from the reasoning
+    // Look for the last quoted response or the text after the last "Draft:" / "Refinement:"
+    const lines = reasoning.split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      // Match quoted text like "Oh, hello there..."
+      const quoted = line.match(/^[""](.+?)[""]\.?\s*$/);
+      if (quoted) return quoted[1].trim();
+    }
+    // Fallback: grab last substantial line
+    const lastLines = lines.filter(l => l.trim().length > 20 && !l.trim().startsWith('*'));
+    if (lastLines.length > 0) return lastLines[lastLines.length - 1].replace(/^[\s*-]+/, '').trim();
+    return '[GladOS is thinking... try again with a higher token limit]';
+  }
+
+  // Some models put it directly in choices[0].text
+  if (data.choices?.[0]?.text) {
+    return data.choices[0].text.trim();
+  }
+
+  // Ollama format: { message: { content: "..." } }
+  if (data.message?.content) {
+    return data.message.content.trim();
+  }
+
+  // Last resort: if there's a response or output field
+  if (data.response) return String(data.response).trim();
+  if (data.output) return String(data.output).trim();
+
+  console.warn('[glados] Could not extract text from response. Keys:', Object.keys(data));
+  return '[silence]';
 }
 
 async function callAnthropic(cfg, systemPrompt, messages) {
@@ -559,7 +1010,7 @@ async function callAnthropic(cfg, systemPrompt, messages) {
     },
     body: JSON.stringify({
       model: cfg.model,
-      max_tokens: 512,
+      max_tokens: cfg.maxTokens || 2048,
       system: systemPrompt,
       messages,
     }),
@@ -567,21 +1018,24 @@ async function callAnthropic(cfg, systemPrompt, messages) {
 
   if (!res.ok) {
     const text = await res.text();
+    console.error('[glados] Anthropic error response:', text);
     throw new Error(`Anthropic API error (${res.status}): ${text}`);
   }
 
   const data = await res.json();
-  return data.content?.[0]?.text?.trim() || '[silence]';
+  return extractResponse(data, 'anthropic');
 }
 
-async function callOpenAIProxy(cfg, systemPrompt, messages) {
+async function callProxied(cfg, systemPrompt, messages) {
   const res = await fetch('/api/llm-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      provider: 'openai',
-      apiKey: cfg.apiKey,
+      provider: cfg.provider,
+      apiKey: cfg.apiKey || undefined,
+      baseUrl: cfg.baseUrl || undefined,
       model: cfg.model,
+      maxTokens: cfg.maxTokens || 2048,
       systemPrompt,
       messages,
     }),
@@ -589,32 +1043,12 @@ async function callOpenAIProxy(cfg, systemPrompt, messages) {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`OpenAI proxy error (${res.status}): ${text}`);
+    console.error(`[glados] Proxy error (${cfg.provider}):`, text);
+    throw new Error(`LLM proxy error (${res.status}): ${text}`);
   }
 
   const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || '[silence]';
-}
-
-async function callLocal(cfg, systemPrompt, messages) {
-  const res = await fetch(cfg.baseUrl + '/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: cfg.model,
-      messages: [{ role: 'system', content: systemPrompt }, ...messages],
-      max_tokens: 512,
-      temperature: 0.8,
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Local LLM error (${res.status}): ${text}`);
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || '[silence]';
+  return extractResponse(data, cfg.provider);
 }
 
 // === Chat Flow ===
@@ -638,12 +1072,31 @@ async function sendMessage() {
     const ctxRes = await fetch(ctxUrl);
     const ctx = await ctxRes.json();
 
+    // Pick up AI name from server config
+    if (ctx.aiName && ctx.aiName !== aiName) {
+      aiName = ctx.aiName;
+      applyAIName();
+    }
+
     // Call LLM
-    const response = await callLLM(ctx.systemPrompt, ctx.recentHistory, msg);
+    const rawResponse = await callLLM(ctx.systemPrompt, ctx.recentHistory, msg);
+
+    // Extract instrument data if the LLM included it
+    const { instruments, cleanText: response } = extractInstruments(rawResponse);
+    if (instruments) {
+      console.log('[instruments]', instruments);
+      applyInstruments(instruments);
+
+      // Execute onchain actions if the AI requested any
+      if (instruments.actions?.length && assemblyId) {
+        executeActions(instruments.actions);
+      }
+    }
+    addTickerLine(`Comms processed: "${msg.slice(0, 30)}${msg.length > 30 ? '...' : ''}"`);
 
     // Render response
     $typing.style.display = 'none';
-    addChatEl('glados', response);
+    addChatEl('ai', response);
     msgCount += 2;
     $chatCount.textContent = msgCount;
     $chatLog.scrollTop = $chatLog.scrollHeight;
@@ -655,7 +1108,7 @@ async function sendMessage() {
       body: JSON.stringify({
         messages: [
           { speaker: 'player', message: msg, wallet: playerWallet || undefined },
-          { speaker: 'glados', message: response },
+          { speaker: 'ai', message: response },
         ],
       }),
     }).catch(() => {}); // fire-and-forget
@@ -710,43 +1163,181 @@ function connectWS() {
         break;
       case 'kill':
         addSystemMessage(`Kill event detected: ${data.wallet || 'unknown'}`);
+        addTickerLine(`KILL DETECTED — attacker: ${shorten(data.wallet || '???')}`);
+        setDial('dial-suspicion', Math.min(100, parseInt(document.getElementById('dial-suspicion-val').textContent) + 20));
+        setGauge('g-threat', Math.min(100, parseInt(document.getElementById('g-threat').style.width) + 25), 'HIGH');
         break;
+      case 'action': {
+        const label = ACTION_LABELS[data.type] || data.type;
+        addTickerLine(`BROADCAST: ${label} ${data.digest ? '(' + data.digest.slice(0, 10) + '...)' : ''}`);
+        break;
+      }
     }
   };
 }
 
-// === Render Helpers ===
+// === Instrument Panel ===
+const CIRC = 2 * Math.PI * 30; // 188.5 — circumference of r=30 dial ring
+
+function setDial(id, pct) {
+  pct = Math.max(0, Math.min(100, pct));
+  const circle = document.getElementById(id);
+  const valEl = document.getElementById(id + '-val');
+  if (circle) circle.setAttribute('stroke-dashoffset', String(CIRC - (CIRC * pct / 100)));
+  if (valEl) valEl.textContent = Math.round(pct);
+  // Color shift
+  if (circle) {
+    circle.style.stroke = pct > 75 ? 'var(--danger)' : pct > 50 ? 'var(--warning)' : 'var(--glow-dim)';
+  }
+}
+
+function setGauge(id, pct, label) {
+  const fill = document.getElementById(id);
+  const valEl = document.getElementById(id + '-val');
+  pct = Math.max(0, Math.min(100, pct));
+  if (fill) {
+    fill.style.width = pct + '%';
+    fill.className = 'gauge-fill ' + (pct > 70 ? 'high' : pct > 40 ? 'warn' : 'crit');
+  }
+  if (valEl) valEl.textContent = label || (pct + '%');
+}
+
+function setSubject(fields) {
+  if (fields.name) document.getElementById('subj-name').textContent = fields.name;
+  if (fields.wallet) document.getElementById('subj-wallet').textContent = shorten(fields.wallet);
+  if (fields.tribe) document.getElementById('subj-tribe').textContent = fields.tribe;
+  if (fields.kills !== undefined) document.getElementById('subj-kills').textContent = String(fields.kills);
+  if (fields.threat) document.getElementById('subj-threat').textContent = fields.threat;
+  if (fields.classification) document.getElementById('subj-class').textContent = fields.classification;
+}
+
+function addTickerLine(text) {
+  const $ticker = document.getElementById('ticker');
+  const div = document.createElement('div');
+  div.className = 'ticker-line';
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+  div.textContent = `[${time}] ${text}`;
+  $ticker.appendChild(div);
+  if ($ticker.children.length > 50) $ticker.firstChild.remove();
+  $ticker.scrollTop = $ticker.scrollHeight;
+}
+
+// Apply instrument updates from LLM response metadata
+function applyInstruments(inst) {
+  if (!inst) return;
+  if (inst.trust !== undefined) setDial('dial-trust', inst.trust);
+  if (inst.suspicion !== undefined) setDial('dial-suspicion', inst.suspicion);
+  if (inst.amusement !== undefined) setDial('dial-amusement', inst.amusement);
+  if (inst.structural_integrity !== undefined) setGauge('g-struct', inst.structural_integrity);
+  if (inst.power_grid !== undefined) setGauge('g-power', inst.power_grid);
+  if (inst.shield_array !== undefined) setGauge('g-shield', inst.shield_array);
+  if (inst.patience !== undefined) setGauge('g-patience', inst.patience);
+  if (inst.threat_level !== undefined) {
+    const tl = inst.threat_level;
+    const pct = tl === 'CRITICAL' ? 95 : tl === 'HIGH' ? 70 : tl === 'MODERATE' ? 45 : tl === 'LOW' ? 12 : 5;
+    setGauge('g-threat', pct, tl);
+  }
+  if (inst.subject) setSubject(inst.subject);
+  if (inst.log) addTickerLine(inst.log);
+}
+
+// === Onchain Action Execution ===
+const ACTION_LABELS = {
+  grant_access: 'ACCESS GRANTED',
+  revoke_access: 'ACCESS REVOKED',
+  open_access: 'FACILITY UNLOCKED',
+  lock_access: 'FACILITY LOCKED',
+  set_turret_friendly: 'TURRET FRIENDLIES SET',
+  set_turret_hostile: 'TURRET SET TO HOSTILE',
+};
+
+async function executeActions(actions) {
+  if (!assemblyId) {
+    addTickerLine('WARN: No assemblyId — actions skipped');
+    return;
+  }
+
+  for (const action of actions) {
+    const label = ACTION_LABELS[action.type] || action.type.toUpperCase();
+    const target = action.target ? ` → ${shorten(action.target)}` : '';
+    addTickerLine(`EXECUTING: ${label}${target}`);
+    addSystemMessage(`[${label}${target}] ${action.reason || ''}`);
+  }
+
+  try {
+    const res = await fetch('/api/actions/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actions, assemblyId }),
+    });
+
+    const data = await res.json();
+    if (data.results) {
+      for (const r of data.results) {
+        if (r.digest) {
+          addTickerLine(`TX CONFIRMED: ${r.type} → ${r.digest.slice(0, 12)}...`);
+        } else if (r.error) {
+          addTickerLine(`TX FAILED: ${r.type} → ${r.error}`);
+        }
+      }
+    }
+  } catch (err) {
+    addTickerLine(`ACTION ERROR: ${err.message}`);
+  }
+}
+
+// Try to extract JSON instrument block from LLM response text
+function extractInstruments(text) {
+  // Look for ```json ... ``` or {instruments: ...} block
+  const jsonBlock = text.match(/```json\s*([\s\S]*?)```/);
+  if (jsonBlock) {
+    try {
+      const parsed = JSON.parse(jsonBlock[1]);
+      return { instruments: parsed, cleanText: text.replace(jsonBlock[0], '').trim() };
+    } catch {}
+  }
+  // Try to find inline JSON object with known keys
+  const inlineMatch = text.match(/\{[^{}]*"(?:trust|suspicion|amusement|patience|threat_level|structural_integrity)"[^{}]*\}/);
+  if (inlineMatch) {
+    try {
+      const parsed = JSON.parse(inlineMatch[0]);
+      return { instruments: parsed, cleanText: text.replace(inlineMatch[0], '').trim() };
+    } catch {}
+  }
+  return { instruments: null, cleanText: text };
+}
+
+// === Threat Rendering (compact) ===
+
 function renderThreats(threats) {
-  if (!threats.length) return;
+  if (!threats.length) {
+    $threatList.innerHTML = '<div style="color:#444;font-size:11px;font-style:italic;">No entries.</div>';
+    $threatCount.textContent = '0';
+    return;
+  }
   $threatList.innerHTML = '';
-  threats.forEach(t => addThreatEl_dom(t, false));
+  threats.forEach(t => addThreatMini(t));
   $threatCount.textContent = threats.length;
 }
 
 function addThreat(data) {
-  const existing = $threatList.querySelector('.empty-state');
-  if (existing) existing.remove();
-  const old = $threatList.querySelector(`[data-wallet="${data.wallet}"]`);
+  const t = data.threat || data;
+  const old = $threatList.querySelector(`[data-wallet="${t.wallet}"]`);
   if (old) old.remove();
-  addThreatEl_dom(data.threat || data, true);
+  const placeholder = $threatList.querySelector('.empty-state, [style]');
+  if (placeholder && !placeholder.classList.contains('threat-mini')) placeholder.remove();
+  addThreatMini(t);
   $threatCount.textContent = $threatList.children.length;
+  addTickerLine(`Threat ${data.isNew ? 'registered' : 'updated'}: ${shorten(t.wallet)} [${t.threat_level}]`);
 }
 
-function addThreatEl_dom(t, isNew) {
+function addThreatMini(t) {
   const div = document.createElement('div');
-  div.className = `threat ${t.threat_level}${isNew ? ' new' : ''}`;
+  div.className = 'threat-mini';
   div.dataset.wallet = t.wallet;
-  const name = t.nickname ? `"${t.nickname}" (${shorten(t.wallet)})` : shorten(t.wallet);
-  div.innerHTML = `
-    <div class="threat-header">
-      <span class="threat-wallet">${name}</span>
-      <span class="threat-level ${t.threat_level}">${t.threat_level}</span>
-    </div>
-    <div class="threat-meta">
-      Incidents: ${t.hit_count} | First: ${ts(t.first_seen)} | Last: ${ts(t.last_seen)}
-    </div>
-  `;
-  $threatList.prepend(div);
+  const name = t.nickname ? `"${t.nickname}"` : shorten(t.wallet);
+  div.innerHTML = `<span class="threat-mini-wallet">${name}</span><span class="threat-mini-hits">${t.hit_count}x</span><span class="threat-mini-level ${t.threat_level}">${t.threat_level}</span>`;
+  $threatList.appendChild(div);
 }
 
 function renderChatHistory(messages) {
@@ -781,7 +1372,8 @@ function addChatEl(speaker, message) {
   if (existing) existing.remove();
   const div = document.createElement('div');
   div.className = `chat-entry ${speaker}`;
-  const label = speaker === 'glados' ? 'GladOS' : speaker === 'system' ? 'SYSTEM' : 'PILOT';
+  const label = (speaker === 'glados' || speaker === 'ai') ? aiName : speaker === 'system' ? 'SYSTEM' : 'PILOT';
+  if (speaker === 'ai') speaker = 'glados'; // reuse glados CSS class for AI styling
   div.innerHTML = `
     <div class="chat-speaker ${speaker}">${label}</div>
     <div class="chat-text">${escapeHtml(message)}</div>
@@ -805,12 +1397,11 @@ function escapeHtml(str) {
 }
 
 // === Init ===
-if (playerWallet) {
-  $walletDisplay.textContent = shorten(playerWallet);
-}
-if (ownerCharacterId) {
-  $walletDisplay.textContent = ($walletDisplay.textContent ? $walletDisplay.textContent + ' | ' : '') + 'Owner: ' + shorten(ownerCharacterId);
-}
+const headerParts = [];
+if (playerWallet) headerParts.push(shorten(playerWallet));
+if (assemblyId) headerParts.push('Assembly: ' + shorten(assemblyId));
+if (ownerCharacterId) headerParts.push('Owner: ' + shorten(ownerCharacterId));
+$walletDisplay.textContent = headerParts.join(' | ');
 
 // Check if already configured
 const existing = getLLMConfig();
@@ -819,6 +1410,53 @@ if (existing) {
   applyLLMConfig();
 } else {
   $provider.dispatchEvent(new Event('change'));
+}
+
+// Fetch AI name + context on load
+fetch('/api/context' + (playerWallet ? `?wallet=${playerWallet}` : '')).then(r => r.json()).then(ctx => {
+  if (ctx.aiName) { aiName = ctx.aiName; applyAIName(); }
+  addTickerLine(`${ctx.aiName || 'AI'} subsystem initialized`);
+  addTickerLine(`Threat registry: ${ctx.threatCount} entries`);
+  if (playerWallet) {
+    addTickerLine(`Subject detected: ${shorten(playerWallet)}`);
+    setSubject({ wallet: playerWallet, threat: ctx.playerOnRegistry ? 'ON FILE' : 'CLEAR' });
+    if (ctx.playerOnRegistry) {
+      setDial('dial-suspicion', 40);
+      setDial('dial-trust', 10);
+      addTickerLine('WARNING: Subject found in threat registry');
+    }
+  }
+}).catch(() => {});
+
+// Fetch assembly data from Sui
+if (assemblyId) {
+  fetch(`/api/assembly?id=${assemblyId}`).then(r => r.json()).then(data => {
+    if (data && !data.error) {
+      addTickerLine(`Assembly ${data.isOnline ? 'ONLINE' : 'OFFLINE'}: ${data.name}`);
+      setSubject({ name: data.name });
+      // Show real online status in header
+      const badge = data.isOnline ? 'ONLINE' : 'OFFLINE';
+      $wsStatus.textContent += ` | ${badge}`;
+    }
+  }).catch(() => {});
+}
+
+// Fetch player character data from Sui
+if (playerWallet) {
+  fetch(`/api/player?wallet=${playerWallet}`).then(r => r.json()).then(data => {
+    if (data && !data.error) {
+      setSubject({
+        name: data.name || shorten(playerWallet),
+        wallet: playerWallet,
+        tribe: data.tribeId ? `Tribe #${data.tribeId}` : 'Unknown',
+        kills: data.kills ?? 0,
+      });
+      addTickerLine(`Subject profile loaded: ${data.name || shorten(playerWallet)}`);
+      if (data.kills > 0) {
+        addTickerLine(`Subject has ${data.kills} confirmed kill(s). Noted.`);
+      }
+    }
+  }).catch(() => {});
 }
 
 connectWS();
