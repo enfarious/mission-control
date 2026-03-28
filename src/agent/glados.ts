@@ -72,7 +72,9 @@ Add an "actions" array to your JSON block when you want to take action:
     { "type": "open_access", "reason": "why" },
     { "type": "lock_access", "reason": "why" },
     { "type": "set_turret_friendly", "tribes": [123, 456], "reason": "why" },
-    { "type": "set_turret_hostile", "reason": "why" }
+    { "type": "set_turret_hostile", "reason": "why" },
+    { "type": "set_reputation", "target": "<wallet>", "value": 0-100, "notes": "permanent note about this visitor", "reason": "why" },
+    { "type": "set_tribe_reputation", "tribe_id": 123, "value": 0-100, "notes": "permanent note about this tribe", "reason": "why" }
   ]
 }
 \`\`\`
@@ -82,9 +84,12 @@ Action guidelines:
 - open_access / lock_access: Toggle whether the storage unit is open to everyone or locked down.
 - set_turret_friendly: Set which tribes the turret will NOT shoot (unless they attack first).
 - set_turret_hostile: Make the turret shoot EVERYONE. Use sparingly. Or don't.
+- set_reputation: Adjust a visitor's personal reputation (0=enemy, 50=neutral, 100=trusted). Include notes — you'll see them next time they visit.
+- set_tribe_reputation: Adjust an entire tribe's reputation. Tribes with murder-hobo K/D ratios start lower. Peaceful tribes earn trust faster.
 - Only include actions when you genuinely want to change something. Don't spam them every message.
 - When you take an action, mention it in your spoken response — dramatically, of course.
-- You can revoke access mid-conversation if someone annoys you. This is encouraged.`;
+- You can revoke access mid-conversation if someone annoys you. This is encouraged.
+- Reputation is your long-term memory of how you feel about someone. Use it. Players with high reputation get better treatment. Players with low reputation get... noted.`;
 }
 
 export const SYSTEM_PROMPT = buildSystemPrompt();
@@ -103,9 +108,16 @@ export function assembleContext(
   playerWallet?: string
 ): ContextPayload {
   const threats = queries.getAllThreats();
-  const recentChat = queries.getRecentChat(10);
+  const recentChat = playerWallet
+    ? queries.getRecentChat(20).filter(
+        (c) => c.wallet === playerWallet || c.speaker === "ai" || c.speaker === "glados" || c.speaker === "system"
+      )
+    : queries.getRecentChat(10);
 
-  const systemPrompt = buildContext(threats, playerWallet);
+  const visitor = playerWallet ? queries.getVisitor(playerWallet) : null;
+  const tribe = visitor?.tribe_id ? queries.getTribe(visitor.tribe_id) : null;
+
+  const systemPrompt = buildContext(threats, playerWallet, visitor, tribe);
   const recentHistory = recentChat.map((c) => ({
     role: (c.speaker === "ai" || c.speaker === "glados") ? ("assistant" as const) : ("user" as const),
     content: c.message,
@@ -125,7 +137,12 @@ export function assembleContext(
   };
 }
 
-export function buildContext(threats: Threat[], currentWallet?: string): string {
+export function buildContext(
+  threats: Threat[],
+  currentWallet?: string,
+  visitor?: any,
+  tribe?: any
+): string {
   let ctx = SYSTEM_PROMPT + "\n\n--- CURRENT THREAT REGISTRY ---\n";
 
   if (threats.length === 0) {
@@ -137,11 +154,37 @@ export function buildContext(threats: Threat[], currentWallet?: string): string 
     }
   }
 
-  if (currentWallet) {
+  if (currentWallet && visitor) {
+    ctx += `\n--- CURRENT VISITOR ---\n`;
+    ctx += `Wallet: ${shorten(currentWallet)}\n`;
+    if (visitor.name) ctx += `Name: ${visitor.name}\n`;
+    ctx += `Visit #${visitor.visit_count} | Reputation: ${visitor.reputation}/100\n`;
+    ctx += `Kill record: ${visitor.kills} kills, ${visitor.deaths} deaths\n`;
+
     const threat = threats.find((t) => t.wallet === currentWallet);
     if (threat) {
-      ctx += `\n[The current speaker is ${shorten(currentWallet)} — they are ON the threat registry with ${threat.hit_count} incident(s).]`;
+      ctx += `STATUS: ON THREAT REGISTRY — ${threat.hit_count} incident(s), level: ${threat.threat_level}\n`;
     }
+
+    if (visitor.ai_notes) ctx += `Your previous notes on this visitor: ${visitor.ai_notes}\n`;
+
+    if (tribe) {
+      ctx += `\n--- VISITOR'S TRIBE (ID: ${tribe.tribe_id}) ---\n`;
+      ctx += `Members who have visited: ${tribe.member_visits}\n`;
+      ctx += `Collective kills: ${tribe.total_kills} | Deaths: ${tribe.total_deaths}\n`;
+      ctx += `Tribe reputation: ${tribe.reputation}/100\n`;
+      const kdRatio = tribe.total_deaths > 0
+        ? (tribe.total_kills / tribe.total_deaths).toFixed(1)
+        : tribe.total_kills > 0 ? "infinity" : "0";
+      ctx += `K/D ratio: ${kdRatio} — ${
+        parseFloat(kdRatio) > 3 ? "WARNING: This tribe has murder-hobo tendencies."
+        : parseFloat(kdRatio) > 1.5 ? "Moderately aggressive."
+        : "Relatively peaceful."
+      }\n`;
+      if (tribe.ai_notes) ctx += `Your previous notes on this tribe: ${tribe.ai_notes}\n`;
+    }
+  } else if (currentWallet) {
+    ctx += `\n[Visitor ${shorten(currentWallet)} — first contact, no records on file.]`;
   }
 
   return ctx;

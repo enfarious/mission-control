@@ -38,6 +38,36 @@ export function initDb(): Database {
       timestamp INTEGER NOT NULL,
       data TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS visitors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      wallet TEXT NOT NULL,
+      character_id TEXT,
+      name TEXT,
+      tribe_id INTEGER,
+      kills INTEGER NOT NULL DEFAULT 0,
+      deaths INTEGER NOT NULL DEFAULT 0,
+      visit_count INTEGER NOT NULL DEFAULT 1,
+      first_visit INTEGER NOT NULL,
+      last_visit INTEGER NOT NULL,
+      reputation INTEGER NOT NULL DEFAULT 50,
+      ai_notes TEXT
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_visitors_wallet ON visitors(wallet);
+
+    CREATE TABLE IF NOT EXISTS tribes (
+      id INTEGER PRIMARY KEY,
+      tribe_id INTEGER NOT NULL,
+      name TEXT,
+      member_visits INTEGER NOT NULL DEFAULT 0,
+      total_kills INTEGER NOT NULL DEFAULT 0,
+      total_deaths INTEGER NOT NULL DEFAULT 0,
+      reputation INTEGER NOT NULL DEFAULT 50,
+      ai_notes TEXT
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tribes_tribe_id ON tribes(tribe_id);
   `);
 
   return db;

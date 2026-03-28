@@ -110,6 +110,69 @@ export function createQueries(db: Database) {
 
     getRecentEvents: (limit = 50): EventEntry[] =>
       getRecentEvents.all(limit),
+
+    // --- Visitors ---
+    upsertVisitor: (wallet: string, data: {
+      characterId?: string;
+      name?: string;
+      tribeId?: number;
+      kills?: number;
+      deaths?: number;
+    }) => {
+      const now = Date.now();
+      db.prepare(`
+        INSERT INTO visitors (wallet, character_id, name, tribe_id, kills, deaths, first_visit, last_visit, reputation)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50)
+        ON CONFLICT(wallet) DO UPDATE SET
+          character_id = COALESCE(excluded.character_id, character_id),
+          name = COALESCE(excluded.name, name),
+          tribe_id = COALESCE(excluded.tribe_id, tribe_id),
+          kills = COALESCE(excluded.kills, kills),
+          deaths = COALESCE(excluded.deaths, deaths),
+          visit_count = visit_count + 1,
+          last_visit = excluded.last_visit
+      `).run(
+        wallet,
+        data.characterId ?? null,
+        data.name ?? null,
+        data.tribeId ?? null,
+        data.kills ?? 0,
+        data.deaths ?? 0,
+        now,
+        now
+      );
+    },
+
+    getVisitor: (wallet: string) =>
+      db.prepare(`SELECT * FROM visitors WHERE wallet = ?`).get(wallet) as any | null,
+
+    updateVisitorReputation: (wallet: string, reputation: number, notes?: string) => {
+      db.prepare(`UPDATE visitors SET reputation = ?, ai_notes = ? WHERE wallet = ?`)
+        .run(Math.max(0, Math.min(100, reputation)), notes ?? null, wallet);
+    },
+
+    // --- Tribes ---
+    upsertTribe: (tribeId: number, memberKills: number, memberDeaths: number) => {
+      db.prepare(`
+        INSERT INTO tribes (tribe_id, member_visits, total_kills, total_deaths, reputation)
+        VALUES (?, 1, ?, ?, 50)
+        ON CONFLICT(tribe_id) DO UPDATE SET
+          member_visits = member_visits + 1,
+          total_kills = total_kills + excluded.total_kills,
+          total_deaths = total_deaths + excluded.total_deaths
+      `).run(tribeId, memberKills, memberDeaths);
+    },
+
+    getTribe: (tribeId: number) =>
+      db.prepare(`SELECT * FROM tribes WHERE tribe_id = ?`).get(tribeId) as any | null,
+
+    getAllTribes: () =>
+      db.prepare(`SELECT * FROM tribes ORDER BY reputation DESC`).all() as any[],
+
+    updateTribeReputation: (tribeId: number, reputation: number, notes?: string) => {
+      db.prepare(`UPDATE tribes SET reputation = ?, ai_notes = ? WHERE tribe_id = ?`)
+        .run(Math.max(0, Math.min(100, reputation)), notes ?? null, tribeId);
+    },
   };
 }
 

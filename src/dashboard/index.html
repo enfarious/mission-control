@@ -1456,6 +1456,8 @@ const ACTION_LABELS = {
   lock_access: 'FACILITY LOCKED',
   set_turret_friendly: 'TURRET FRIENDLIES SET',
   set_turret_hostile: 'TURRET SET TO HOSTILE',
+  set_reputation: 'REPUTATION ADJUSTED',
+  set_tribe_reputation: 'TRIBE REPUTATION ADJUSTED',
 };
 
 async function executeActions(actions) {
@@ -1652,40 +1654,48 @@ async function identifyPlayer(wallet) {
   addTickerLine(`Subject presenting credentials: ${shorten(wallet)}`);
   $walletDisplay.textContent = shorten(wallet) + (assemblyId ? ' | Assembly: ' + shorten(assemblyId) : '');
 
-  // Fetch player data
+  // Fetch player data (now includes visit tracking, reputation, tribe)
   try {
     const res = await fetch(`/api/player?wallet=${wallet}`);
     const data = await res.json();
     if (data && !data.error) {
+      const tribeLabel = data.tribe
+        ? `Tribe #${data.tribeId} (rep: ${data.tribe.reputation}/100)`
+        : data.tribeId ? `Tribe #${data.tribeId}` : 'Unaffiliated';
+
       setSubject({
         name: data.name || shorten(wallet),
         wallet,
-        tribe: data.tribeId ? `Tribe #${data.tribeId}` : 'Unaffiliated',
-        kills: data.kills ?? 0,
+        tribe: tribeLabel,
+        kills: `${data.kills ?? 0}k / ${data.deaths ?? 0}d`,
+        threat: data.onThreatRegistry ? 'ON FILE' : 'CLEAR',
       });
-      addTickerLine(`Subject profile loaded: ${data.name || shorten(wallet)}`);
+
+      addTickerLine(`Subject: ${data.name || shorten(wallet)} | Visit #${data.visitCount} | Rep: ${data.reputation}/100`);
+
       if (data.kills > 0) {
-        addTickerLine(`Subject has ${data.kills} confirmed kill(s). Noted.`);
-        setDial('dial-suspicion', Math.min(100, data.kills * 10));
+        addTickerLine(`Kill record: ${data.kills} kills, ${data.deaths} deaths`);
+      }
+
+      // Set initial dial states based on reputation and history
+      if (data.onThreatRegistry) {
+        setDial('dial-suspicion', 70);
+        setDial('dial-trust', 5);
+        addTickerLine(`WARNING: Subject on threat registry (${data.threatLevel})`);
+      } else {
+        // Reputation influences starting trust/suspicion
+        setDial('dial-trust', Math.min(80, Math.max(5, data.reputation)));
+        setDial('dial-suspicion', Math.max(0, 50 - data.reputation));
+      }
+
+      if (data.tribe && data.tribe.reputation < 30) {
+        addTickerLine(`ALERT: Visitor's tribe has poor reputation (${data.tribe.reputation}/100)`);
+        setDial('dial-suspicion', Math.min(100, parseInt(document.getElementById('dial-suspicion-val').textContent) + 15));
       }
     }
   } catch (err) {
     addTickerLine(`Profile lookup failed: ${err.message}`);
   }
-
-  // Check threat registry
-  try {
-    const ctxRes = await fetch(`/api/context?wallet=${wallet}`);
-    const ctx = await ctxRes.json();
-    if (ctx.playerOnRegistry) {
-      setSubject({ threat: 'ON FILE' });
-      setDial('dial-suspicion', 60);
-      setDial('dial-trust', 5);
-      addTickerLine('WARNING: Subject found in threat registry');
-    } else {
-      setSubject({ threat: 'CLEAR' });
-    }
-  } catch {}
 
   // Unlock chat + load this player's chat history
   updateChatState();

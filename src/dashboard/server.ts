@@ -196,7 +196,7 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
         return Response.json(status ?? { error: "Not found" }, { headers: CORS_HEADERS });
       }
 
-      // GET /api/player — character lookup from Sui
+      // GET /api/player — character lookup + visit recording
       if (url.pathname === "/api/player" && req.method === "GET") {
         const wallet = url.searchParams.get("wallet");
         if (!wallet) {
@@ -206,7 +206,42 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
         const stats = character?.characterId
           ? await fetchKillStats(character.characterId)
           : { kills: 0, deaths: 0 };
-        return Response.json({ ...character, ...stats }, { headers: CORS_HEADERS });
+
+        // Record visit + update tribe stats
+        queries.upsertVisitor(wallet, {
+          characterId: character?.characterId,
+          name: character?.name,
+          tribeId: character?.tribeId,
+          kills: stats.kills,
+          deaths: stats.deaths,
+        });
+
+        if (character?.tribeId) {
+          queries.upsertTribe(character.tribeId, stats.kills, stats.deaths);
+        }
+
+        // Enrich with local reputation data
+        const visitor = queries.getVisitor(wallet);
+        const tribe = character?.tribeId ? queries.getTribe(character.tribeId) : null;
+        const threat = queries.getAllThreats().find((t: any) => t.wallet === wallet);
+
+        return Response.json({
+          ...character,
+          ...stats,
+          visitCount: visitor?.visit_count ?? 1,
+          reputation: visitor?.reputation ?? 50,
+          aiNotes: visitor?.ai_notes,
+          onThreatRegistry: !!threat,
+          threatLevel: threat?.threat_level,
+          tribe: tribe ? {
+            tribeId: tribe.tribe_id,
+            memberVisits: tribe.member_visits,
+            totalKills: tribe.total_kills,
+            totalDeaths: tribe.total_deaths,
+            reputation: tribe.reputation,
+            aiNotes: tribe.ai_notes,
+          } : null,
+        }, { headers: CORS_HEADERS });
       }
 
       // POST /api/actions/execute — execute AI-decided onchain actions
@@ -219,6 +254,25 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
 
           const results = [];
           for (const action of body.actions) {
+            // Handle reputation actions locally (no onchain tx needed)
+            if (action.type === "set_reputation" && action.target) {
+              const value = (action as any).value ?? 50;
+              const notes = (action as any).notes;
+              queries.updateVisitorReputation(action.target, value, notes);
+              results.push({ type: action.type, result: `Reputation set to ${value}` });
+              bus.emit("action", { ...action, result: `Reputation → ${value}` });
+              continue;
+            }
+            if (action.type === "set_tribe_reputation") {
+              const tribeId = (action as any).tribe_id;
+              const value = (action as any).value ?? 50;
+              const notes = (action as any).notes;
+              if (tribeId) queries.updateTribeReputation(tribeId, value, notes);
+              results.push({ type: action.type, result: `Tribe ${tribeId} reputation set to ${value}` });
+              bus.emit("action", { ...action, result: `Tribe reputation → ${value}` });
+              continue;
+            }
+
             const result = await executeAction(action, body.assemblyId);
             results.push(result);
             bus.emit("action", { ...action, ...result });
