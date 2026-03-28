@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mission Control — GladOS Oversight System</title>
+<title>Mission Control — Oversight System</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -329,6 +329,152 @@
 
   .field-hidden { display: none; }
 
+  /* --- Visual Polish --- */
+  .instruments::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 255, 65, 0.015) 2px,
+      rgba(0, 255, 65, 0.015) 4px
+    );
+    z-index: 10;
+  }
+
+  .panel:first-child {
+    box-shadow: inset 0 0 30px rgba(0, 255, 65, 0.03);
+  }
+
+  @keyframes pulse-glow {
+    0% { filter: brightness(1); }
+    50% { filter: brightness(1.4); }
+    100% { filter: brightness(1); }
+  }
+
+  .dial-ring .fill.pulse {
+    animation: pulse-glow 0.6s ease;
+  }
+
+  .gauge-fill.updating {
+    filter: brightness(1.3);
+    transition: width 0.8s ease, background 0.8s ease, filter 0.3s ease;
+  }
+
+  @keyframes ticker-in {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 0.7; transform: translateX(0); }
+  }
+
+  .ticker-line {
+    animation: ticker-in 0.3s ease;
+  }
+
+  /* Station Info */
+  .station-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .station-name {
+    color: var(--glow);
+    font-weight: bold;
+    font-size: 12px;
+  }
+
+  .station-status {
+    font-size: 10px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 2px;
+    letter-spacing: 1px;
+  }
+
+  .station-status.online { background: var(--glow-dim); color: #000; }
+  .station-status.offline { background: var(--danger); color: #000; }
+
+  .station-id { color: #555; font-size: 10px; }
+
+  /* Identify button */
+  .identify-section {
+    text-align: center;
+    padding: 12px 0;
+  }
+
+  .identify-btn {
+    background: transparent;
+    color: var(--glow);
+    border: 1px solid var(--glow-dim);
+    padding: 10px 24px;
+    font-family: inherit;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.3s ease;
+  }
+
+  .identify-btn:hover {
+    background: var(--glow-dim);
+    color: #000;
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+  }
+
+  .identify-hint {
+    color: #444;
+    font-size: 10px;
+    margin-top: 6px;
+    font-style: italic;
+  }
+
+  .visitor-unidentified {
+    color: #555;
+    text-align: center;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 4px 0 8px;
+  }
+
+  /* Wallet paste modal */
+  .paste-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99;
+  }
+
+  .paste-modal.hidden { display: none; }
+
+  .paste-modal .modal {
+    width: 380px;
+  }
+
+  .paste-modal input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--glow);
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 12px;
+    border-radius: 3px;
+    outline: none;
+    margin-top: 12px;
+  }
+
+  .paste-modal input:focus { border-color: var(--glow-dim); }
+
   @keyframes flash {
     0% { background: rgba(0, 255, 65, 0.15); }
     100% { background: transparent; }
@@ -518,7 +664,7 @@
 <div class="modal-overlay" id="connect-modal">
   <div class="modal">
     <h2>Neural Link Configuration</h2>
-    <p class="subtitle">Connect an LLM provider to interface with GladOS. Your key stays in your browser.</p>
+    <p class="subtitle">Connect an LLM provider to interface with the facility AI. Your key stays in your browser.</p>
 
     <label for="llm-provider">Provider</label>
     <select id="llm-provider">
@@ -559,6 +705,19 @@
   </div>
 </div>
 
+<!-- Wallet Paste Modal -->
+<div class="paste-modal hidden" id="paste-modal">
+  <div class="modal">
+    <h2>Identify Yourself</h2>
+    <p class="subtitle">No wallet detected. Enter your Sui address to proceed.</p>
+    <input type="text" id="paste-wallet-input" placeholder="0x..." autocomplete="off" />
+    <div class="modal-actions">
+      <button id="paste-cancel-btn" class="danger">Decline</button>
+      <button id="paste-confirm-btn">Submit</button>
+    </div>
+  </div>
+</div>
+
 <!-- Header -->
 <header>
   <h1>Mission Control</h1>
@@ -577,6 +736,15 @@
       <span class="count" id="threat-count">0</span>
     </div>
     <div class="panel-body instruments" id="instrument-panel">
+
+      <!-- Station Info -->
+      <div class="instrument-section">
+        <div class="station-info">
+          <span class="station-name" id="station-name">Station</span>
+          <span class="station-status offline" id="station-status">OFFLINE</span>
+        </div>
+        <div class="station-id" id="station-id"></div>
+      </div>
 
       <!-- Radial dials -->
       <div class="instrument-section">
@@ -616,16 +784,25 @@
         <div class="gauge"><div class="gauge-label"><span>Threat Assessment</span><span id="g-threat-val">LOW</span></div><div class="gauge-track"><div class="gauge-fill" id="g-threat" style="width:12%"></div></div></div>
       </div>
 
-      <!-- Subject Analysis -->
-      <div class="instrument-section">
-        <h3>Subject Analysis</h3>
-        <div class="subject-grid" id="subject-grid">
-          <span class="subject-key">Designation</span><span class="subject-val" id="subj-name">---</span>
-          <span class="subject-key">Wallet</span><span class="subject-val" id="subj-wallet">---</span>
-          <span class="subject-key">Tribe</span><span class="subject-val" id="subj-tribe">---</span>
-          <span class="subject-key">Kill Record</span><span class="subject-val" id="subj-kills">---</span>
-          <span class="subject-key">Threat Status</span><span class="subject-val" id="subj-threat">UNKNOWN</span>
-          <span class="subject-key">Classification</span><span class="subject-val" id="subj-class">PENDING</span>
+      <!-- Visitor Identification -->
+      <div class="instrument-section" id="visitor-section">
+        <h3>Visitor</h3>
+        <div id="visitor-unidentified">
+          <div class="visitor-unidentified">UNIDENTIFIED</div>
+          <div class="identify-section">
+            <button class="identify-btn" id="identify-btn">Identify Yourself</button>
+            <div class="identify-hint">Wallet connection required for facility access</div>
+          </div>
+        </div>
+        <div id="visitor-identified" style="display:none;">
+          <div class="subject-grid" id="subject-grid">
+            <span class="subject-key">Designation</span><span class="subject-val" id="subj-name">---</span>
+            <span class="subject-key">Wallet</span><span class="subject-val" id="subj-wallet">---</span>
+            <span class="subject-key">Tribe</span><span class="subject-val" id="subj-tribe">---</span>
+            <span class="subject-key">Kill Record</span><span class="subject-val" id="subj-kills">---</span>
+            <span class="subject-key">Threat Status</span><span class="subject-val" id="subj-threat">UNKNOWN</span>
+            <span class="subject-key">Classification</span><span class="subject-val" id="subj-class">PENDING</span>
+          </div>
         </div>
       </div>
 
@@ -650,11 +827,11 @@
       <span class="count" id="chat-count">0</span>
     </div>
     <div class="panel-body" id="chat-log">
-      <div class="empty-state">Connect an LLM provider to speak with GladOS.</div>
+      <div class="empty-state">Connect an LLM provider to begin communications.</div>
     </div>
-    <div id="typing-indicator">GladOS is processing your request...</div>
+    <div id="typing-indicator">Processing your request...</div>
     <div class="chat-input-area">
-      <input type="text" id="chat-input" placeholder="Speak to GladOS..." autocomplete="off" disabled />
+      <input type="text" id="chat-input" placeholder="Transmit message..." autocomplete="off" disabled />
       <button id="chat-send" disabled>Transmit</button>
     </div>
   </div>
@@ -697,7 +874,7 @@ let aiName = 'AI'; // populated from /api/context
 // Parse URL params
 const params = new URLSearchParams(location.search);
 const ownerCharacterId = params.get('owner');
-const playerWallet = params.get('wallet'); // for dev/testing
+let playerWallet = params.get('wallet'); // mutable — set by URL, sessionStorage, or wallet connect
 const assemblyId = params.get('assemblyId'); // assembly Sui object ID
 
 // === LLM Config (localStorage) ===
@@ -978,7 +1155,7 @@ function extractResponse(data, provider) {
     // Fallback: grab last substantial line
     const lastLines = lines.filter(l => l.trim().length > 20 && !l.trim().startsWith('*'));
     if (lastLines.length > 0) return lastLines[lastLines.length - 1].replace(/^[\s*-]+/, '').trim();
-    return '[GladOS is thinking... try again with a higher token limit]';
+    return '[AI is thinking... try again with a higher token limit]';
   }
 
   // Some models put it directly in choices[0].text
@@ -1149,6 +1326,7 @@ function connectWS() {
     const data = JSON.parse(e.data);
     switch (data.type) {
       case 'init':
+        if (data.aiName) { aiName = data.aiName; applyAIName(); }
         renderThreats(data.threats);
         renderChatHistory(data.chat);
         break;
@@ -1183,12 +1361,15 @@ function setDial(id, pct) {
   pct = Math.max(0, Math.min(100, pct));
   const circle = document.getElementById(id);
   const valEl = document.getElementById(id + '-val');
-  if (circle) circle.setAttribute('stroke-dashoffset', String(CIRC - (CIRC * pct / 100)));
-  if (valEl) valEl.textContent = Math.round(pct);
-  // Color shift
   if (circle) {
+    circle.setAttribute('stroke-dashoffset', String(CIRC - (CIRC * pct / 100)));
     circle.style.stroke = pct > 75 ? 'var(--danger)' : pct > 50 ? 'var(--warning)' : 'var(--glow-dim)';
+    // Pulse on change
+    circle.classList.remove('pulse');
+    void circle.offsetWidth; // reflow to restart animation
+    circle.classList.add('pulse');
   }
+  if (valEl) valEl.textContent = Math.round(pct);
 }
 
 function setGauge(id, pct, label) {
@@ -1198,6 +1379,9 @@ function setGauge(id, pct, label) {
   if (fill) {
     fill.style.width = pct + '%';
     fill.className = 'gauge-fill ' + (pct > 70 ? 'high' : pct > 40 ? 'warn' : 'crit');
+    // Brief brightness flash on update
+    fill.classList.add('updating');
+    setTimeout(() => fill.classList.remove('updating'), 800);
   }
   if (valEl) valEl.textContent = label || (pct + '%');
 }
@@ -1396,14 +1580,144 @@ function escapeHtml(str) {
   return d.innerHTML;
 }
 
+// === Wallet Connect + Player Identification ===
+const $identifyBtn = document.getElementById('identify-btn');
+const $visitorUnidentified = document.getElementById('visitor-unidentified');
+const $visitorIdentified = document.getElementById('visitor-identified');
+const $pasteModal = document.getElementById('paste-modal');
+const $pasteInput = document.getElementById('paste-wallet-input');
+const $pasteConfirm = document.getElementById('paste-confirm-btn');
+const $pasteCancel = document.getElementById('paste-cancel-btn');
+
+async function tryWalletConnect() {
+  // Try Sui wallet-standard
+  try {
+    if (window.suiWallet) {
+      const result = await window.suiWallet.requestPermissions({ permissions: ['viewAccount'] });
+      const accounts = await window.suiWallet.getAccounts();
+      if (accounts?.length) return accounts[0].address;
+    }
+    // Try generic wallet-standard via navigator
+    if (typeof getWallets === 'function') {
+      const wallets = getWallets().get();
+      for (const w of wallets) {
+        if (w.name?.toLowerCase().includes('sui') || w.name?.toLowerCase().includes('eve')) {
+          const features = w.features?.['standard:connect'];
+          if (features?.connect) {
+            const resp = await features.connect();
+            if (resp?.accounts?.[0]?.address) return resp.accounts[0].address;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.log('[wallet] Wallet connect attempt failed:', err.message);
+  }
+  return null;
+}
+
+async function identifyPlayer(wallet) {
+  if (!wallet) return;
+  playerWallet = wallet;
+  sessionStorage.setItem('glados_playerWallet', wallet);
+
+  // Switch UI
+  $visitorUnidentified.style.display = 'none';
+  $visitorIdentified.style.display = '';
+
+  setSubject({ wallet, threat: 'SCANNING...', classification: 'SCANNING...' });
+  addTickerLine(`Subject presenting credentials: ${shorten(wallet)}`);
+  $walletDisplay.textContent = shorten(wallet) + (assemblyId ? ' | Assembly: ' + shorten(assemblyId) : '');
+
+  // Fetch player data
+  try {
+    const res = await fetch(`/api/player?wallet=${wallet}`);
+    const data = await res.json();
+    if (data && !data.error) {
+      setSubject({
+        name: data.name || shorten(wallet),
+        wallet,
+        tribe: data.tribeId ? `Tribe #${data.tribeId}` : 'Unaffiliated',
+        kills: data.kills ?? 0,
+      });
+      addTickerLine(`Subject profile loaded: ${data.name || shorten(wallet)}`);
+      if (data.kills > 0) {
+        addTickerLine(`Subject has ${data.kills} confirmed kill(s). Noted.`);
+        setDial('dial-suspicion', Math.min(100, data.kills * 10));
+      }
+    }
+  } catch (err) {
+    addTickerLine(`Profile lookup failed: ${err.message}`);
+  }
+
+  // Check threat registry
+  try {
+    const ctxRes = await fetch(`/api/context?wallet=${wallet}`);
+    const ctx = await ctxRes.json();
+    if (ctx.playerOnRegistry) {
+      setSubject({ threat: 'ON FILE' });
+      setDial('dial-suspicion', 60);
+      setDial('dial-trust', 5);
+      addTickerLine('WARNING: Subject found in threat registry');
+    } else {
+      setSubject({ threat: 'CLEAR' });
+    }
+  } catch {}
+}
+
+$identifyBtn.addEventListener('click', async () => {
+  $identifyBtn.textContent = 'SCANNING...';
+  $identifyBtn.disabled = true;
+
+  // Try real wallet connect first
+  const wallet = await tryWalletConnect();
+  if (wallet) {
+    await identifyPlayer(wallet);
+    return;
+  }
+
+  // Fall back to paste modal
+  $identifyBtn.textContent = 'IDENTIFY YOURSELF';
+  $identifyBtn.disabled = false;
+  $pasteModal.classList.remove('hidden');
+  $pasteInput.focus();
+});
+
+$pasteConfirm.addEventListener('click', async () => {
+  const wallet = $pasteInput.value.trim();
+  if (!wallet || !wallet.startsWith('0x')) {
+    $pasteInput.style.borderColor = 'var(--danger)';
+    return;
+  }
+  $pasteModal.classList.add('hidden');
+  await identifyPlayer(wallet);
+});
+
+$pasteCancel.addEventListener('click', () => {
+  $pasteModal.classList.add('hidden');
+  addTickerLine('Subject declined identification. Suspicion increased.');
+  setDial('dial-suspicion', Math.min(100, parseInt(document.getElementById('dial-suspicion-val').textContent) + 25));
+});
+
+$pasteInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $pasteConfirm.click();
+  if (e.key === 'Escape') $pasteCancel.click();
+});
+
 // === Init ===
+
+// Restore wallet from sessionStorage if not in URL
+if (!playerWallet) {
+  const saved = sessionStorage.getItem('glados_playerWallet');
+  if (saved) playerWallet = saved;
+}
+
+// Header display
 const headerParts = [];
-if (playerWallet) headerParts.push(shorten(playerWallet));
 if (assemblyId) headerParts.push('Assembly: ' + shorten(assemblyId));
-if (ownerCharacterId) headerParts.push('Owner: ' + shorten(ownerCharacterId));
 $walletDisplay.textContent = headerParts.join(' | ');
 
-// Check if already configured
+// LLM config
 const existing = getLLMConfig();
 if (existing) {
   $modal.classList.add('hidden');
@@ -1412,51 +1726,33 @@ if (existing) {
   $provider.dispatchEvent(new Event('change'));
 }
 
-// Fetch AI name + context on load
+// Fetch AI name + context
 fetch('/api/context' + (playerWallet ? `?wallet=${playerWallet}` : '')).then(r => r.json()).then(ctx => {
   if (ctx.aiName) { aiName = ctx.aiName; applyAIName(); }
   addTickerLine(`${ctx.aiName || 'AI'} subsystem initialized`);
   addTickerLine(`Threat registry: ${ctx.threatCount} entries`);
-  if (playerWallet) {
-    addTickerLine(`Subject detected: ${shorten(playerWallet)}`);
-    setSubject({ wallet: playerWallet, threat: ctx.playerOnRegistry ? 'ON FILE' : 'CLEAR' });
-    if (ctx.playerOnRegistry) {
-      setDial('dial-suspicion', 40);
-      setDial('dial-trust', 10);
-      addTickerLine('WARNING: Subject found in threat registry');
-    }
-  }
+
+  // Set station name to AI name initially
+  document.getElementById('station-name').textContent = ctx.aiName || 'Station';
 }).catch(() => {});
 
-// Fetch assembly data from Sui
+// Fetch assembly data → populate station info
 if (assemblyId) {
+  document.getElementById('station-id').textContent = shorten(assemblyId);
   fetch(`/api/assembly?id=${assemblyId}`).then(r => r.json()).then(data => {
     if (data && !data.error) {
+      document.getElementById('station-name').textContent = data.name || aiName;
+      const $status = document.getElementById('station-status');
+      $status.textContent = data.isOnline ? 'ONLINE' : 'OFFLINE';
+      $status.className = 'station-status ' + (data.isOnline ? 'online' : 'offline');
       addTickerLine(`Assembly ${data.isOnline ? 'ONLINE' : 'OFFLINE'}: ${data.name}`);
-      setSubject({ name: data.name });
-      // Show real online status in header
-      const badge = data.isOnline ? 'ONLINE' : 'OFFLINE';
-      $wsStatus.textContent += ` | ${badge}`;
     }
   }).catch(() => {});
 }
 
-// Fetch player character data from Sui
+// Auto-identify if wallet already known (from URL or sessionStorage)
 if (playerWallet) {
-  fetch(`/api/player?wallet=${playerWallet}`).then(r => r.json()).then(data => {
-    if (data && !data.error) {
-      setSubject({
-        name: data.name || shorten(playerWallet),
-        wallet: playerWallet,
-        tribe: data.tribeId ? `Tribe #${data.tribeId}` : 'Unknown',
-        kills: data.kills ?? 0,
-      });
-      addTickerLine(`Subject profile loaded: ${data.name || shorten(playerWallet)}`);
-      if (data.kills > 0) {
-        addTickerLine(`Subject has ${data.kills} confirmed kill(s). Noted.`);
-      }
-    }
-  }).catch(() => {});
+  identifyPlayer(playerWallet);
 }
 
 connectWS();
