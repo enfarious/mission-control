@@ -827,7 +827,7 @@
       <span class="count" id="chat-count">0</span>
     </div>
     <div class="panel-body" id="chat-log">
-      <div class="empty-state">Connect an LLM provider to begin communications.</div>
+      <div class="empty-state" id="chat-empty-state">Identify yourself to access communications.</div>
     </div>
     <div id="typing-indicator">Processing your request...</div>
     <div class="chat-input-area">
@@ -1087,29 +1087,52 @@ $llmStatus.addEventListener('click', async () => {
   $modal.classList.remove('hidden');
 });
 
-function applyLLMConfig() {
-  const cfg = getLLMConfig();
-  if (cfg) {
-    $llmStatus.textContent = cfg.provider.toUpperCase();
+function canChat() {
+  return !!playerWallet && !!getLLMConfig();
+}
+
+function updateChatState() {
+  const hasWallet = !!playerWallet;
+  const hasLLM = !!getLLMConfig();
+  const ready = hasWallet && hasLLM;
+
+  $chatInput.disabled = !ready;
+  $chatSend.disabled = !ready;
+
+  if (hasLLM) {
+    $llmStatus.textContent = getLLMConfig().provider.toUpperCase();
     $llmStatus.style.color = 'var(--glow)';
-    $chatInput.disabled = false;
-    $chatSend.disabled = false;
-    $chatInput.placeholder = `Speak to ${aiName}...`;
   } else {
     $llmStatus.textContent = 'NO LLM';
     $llmStatus.style.color = 'var(--glow-dim)';
-    $chatInput.disabled = true;
-    $chatSend.disabled = true;
-    $chatInput.placeholder = 'Connect an LLM provider first...';
   }
+
+  if (ready) {
+    $chatInput.placeholder = `Speak to ${aiName}...`;
+  } else if (!hasWallet) {
+    $chatInput.placeholder = 'Identify yourself first...';
+  } else {
+    $chatInput.placeholder = 'Connect an LLM provider...';
+  }
+
+  const emptyState = document.getElementById('chat-empty-state');
+  if (emptyState) {
+    if (!hasWallet) {
+      emptyState.textContent = `Identify yourself to access communications.`;
+    } else if (!hasLLM) {
+      emptyState.textContent = `Connect an LLM provider to speak with ${aiName}.`;
+    }
+  }
+}
+
+function applyLLMConfig() {
+  updateChatState();
 }
 
 function applyAIName() {
   document.title = `Mission Control — ${aiName} Oversight System`;
   $typing.textContent = `${aiName} is processing your request...`;
-  if (!$chatInput.disabled) $chatInput.placeholder = `Speak to ${aiName}...`;
-  const emptyChat = $chatLog.querySelector('.empty-state');
-  if (emptyChat) emptyChat.textContent = `Connect an LLM provider to speak with ${aiName}.`;
+  updateChatState();
 }
 
 // === Client-side LLM Caller ===
@@ -1328,15 +1351,15 @@ function connectWS() {
       case 'init':
         if (data.aiName) { aiName = data.aiName; applyAIName(); }
         renderThreats(data.threats);
-        renderChatHistory(data.chat);
         break;
       case 'threat':
         addThreat(data);
         break;
       case 'chat':
-        // Only render if not our own message (avoid duplicates)
-        if (!isProcessing) {
-          addChatMessage(data);
+        // Chat is per-player now. Each client renders its own conversation locally.
+        // WS chat broadcasts are only used for the ticker (activity awareness).
+        if (data.speaker === 'player' && data.wallet && data.wallet !== playerWallet) {
+          addTickerLine(`Comms activity: ${shorten(data.wallet)}`);
         }
         break;
       case 'kill':
@@ -1661,6 +1684,24 @@ async function identifyPlayer(wallet) {
       addTickerLine('WARNING: Subject found in threat registry');
     } else {
       setSubject({ threat: 'CLEAR' });
+    }
+  } catch {}
+
+  // Unlock chat + load this player's chat history
+  updateChatState();
+  loadPlayerChat(wallet);
+}
+
+async function loadPlayerChat(wallet) {
+  try {
+    const res = await fetch(`/api/chat?wallet=${wallet}`);
+    const messages = await res.json();
+    if (messages.length) {
+      $chatLog.innerHTML = '';
+      messages.forEach(m => addChatEl(m.speaker, m.message));
+      msgCount = messages.length;
+      $chatCount.textContent = msgCount;
+      $chatLog.scrollTop = $chatLog.scrollHeight;
     }
   } catch {}
 }

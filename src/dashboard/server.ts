@@ -3,7 +3,7 @@ import { resolve } from "path";
 import type { EventBus } from "../events.ts";
 import type { Queries } from "../db/queries.ts";
 import type { ThreatManager } from "../agent/threats.ts";
-import { assembleContext } from "../agent/glados.ts";
+import { assembleContext, AI_NAME, AI_TAGLINE } from "../agent/glados.ts";
 import { executeAction, type AIAction } from "../chain/actions.ts";
 import { fetchAssemblyStatus, fetchCharacterByWallet, fetchKillStats } from "../chain/assembly.ts";
 
@@ -65,9 +65,15 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
         return Response.json(queries.getAllThreats(), { headers: CORS_HEADERS });
       }
 
-      // GET /api/chat
+      // GET /api/chat — optionally filtered by wallet
       if (url.pathname === "/api/chat" && req.method === "GET") {
-        return Response.json(queries.getRecentChat(50), { headers: CORS_HEADERS });
+        const wallet = url.searchParams.get("wallet");
+        const chat = wallet
+          ? queries.getRecentChat(50).filter(
+              (c) => c.wallet === wallet || c.speaker === "ai" || c.speaker === "glados" || c.speaker === "system"
+            )
+          : queries.getRecentChat(50);
+        return Response.json(chat, { headers: CORS_HEADERS });
       }
 
       // POST /api/chat/log — client logs conversation
@@ -238,8 +244,10 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
         ws.send(
           JSON.stringify({
             type: "init",
+            aiName: AI_NAME,
+            aiTagline: AI_TAGLINE,
             threats: queries.getAllThreats(),
-            chat: queries.getRecentChat(50),
+            // Chat history is fetched per-player after wallet identification
           })
         );
       },
