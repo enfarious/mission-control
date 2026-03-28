@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun init:*)",
+      "Bash(where bun:*)",
+      "Bash(cmd.exe /c \"where bun\")",
+      "Bash(powershell -Command \"irm bun.sh/install.ps1 | iex\")",
+      "Bash(export PATH=\"$PATH:/c/Users/Mike/.bun/bin\")",
+      "Bash(bun add:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.evefrontier.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:dev.to)",
+      "WebFetch(domain:redstone.xyz)",
+      "WebFetch(domain:chainlist.org)",
+      "Read(//f/tmp/**)",
+      "Bash(gh search:*)",
+      "WebFetch(domain:mud.dev)",
+      "Bash(gh api:*)"
+    ]
+  }
+}
