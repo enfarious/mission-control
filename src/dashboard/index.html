@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mission Control — Oversight System</title>
+<script type="importmap">
+{
+  "imports": {
+    "@mysten/wallet-standard": "https://esm.sh/@mysten/wallet-standard@0.13.2"
+  }
+}
+</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -837,7 +844,7 @@
   </div>
 </div>
 
-<script>
+<script type="module">
 // === DOM refs ===
 const $modal = document.getElementById('connect-modal');
 const $provider = document.getElementById('llm-provider');
@@ -1614,31 +1621,88 @@ const $pasteInput = document.getElementById('paste-wallet-input');
 const $pasteConfirm = document.getElementById('paste-confirm-btn');
 const $pasteCancel = document.getElementById('paste-cancel-btn');
 
-async function tryWalletConnect() {
-  // Try Sui wallet-standard
+// Wallet-standard detection — Eve Vault registers with ~100ms delay
+let _walletsApi = null;
+async function getWalletsApi() {
+  if (_walletsApi) return _walletsApi;
   try {
-    if (window.suiWallet) {
-      const result = await window.suiWallet.requestPermissions({ permissions: ['viewAccount'] });
-      const accounts = await window.suiWallet.getAccounts();
-      if (accounts?.length) return accounts[0].address;
-    }
-    // Try generic wallet-standard via navigator
-    if (typeof getWallets === 'function') {
-      const wallets = getWallets().get();
-      for (const w of wallets) {
-        if (w.name?.toLowerCase().includes('sui') || w.name?.toLowerCase().includes('eve')) {
-          const features = w.features?.['standard:connect'];
-          if (features?.connect) {
-            const resp = await features.connect();
-            if (resp?.accounts?.[0]?.address) return resp.accounts[0].address;
-          }
-        }
-      }
-    }
+    const mod = await import('@mysten/wallet-standard');
+    _walletsApi = mod.getWallets();
+    return _walletsApi;
   } catch (err) {
-    console.log('[wallet] Wallet connect attempt failed:', err.message);
+    console.log('[wallet] wallet-standard not available:', err.message);
+    return null;
   }
-  return null;
+}
+
+function findSuiWallet(walletsApi) {
+  if (!walletsApi) return null;
+  const all = walletsApi.get();
+  console.log('[wallet] Detected wallets:', all.map(w => w.name));
+  // Prefer Eve Vault, fall back to any Sui wallet
+  return all.find(w => w.name === 'Eve Vault')
+    || all.find(w => w.chains?.some(c => c.startsWith('sui:')))
+    || null;
+}
+
+async function waitForWallet(timeoutMs = 2000) {
+  const api = await getWalletsApi();
+  if (!api) return null;
+
+  // Check already registered
+  const existing = findSuiWallet(api);
+  if (existing) return existing;
+
+  // Wait for late registration (Eve Vault has ~100ms delay)
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { unsub(); resolve(null); }, timeoutMs);
+    const unsub = api.on('register', () => {
+      const found = findSuiWallet(api);
+      if (found) { clearTimeout(timer); unsub(); resolve(found); }
+    });
+  });
+}
+
+async function tryWalletConnect() {
+  try {
+    const wallet = await waitForWallet(2000);
+    if (!wallet) {
+      console.log('[wallet] No Sui wallet found');
+      return null;
+    }
+
+    console.log('[wallet] Found wallet:', wallet.name);
+
+    // Check if already authorized
+    if (wallet.accounts?.length > 0) {
+      const addr = wallet.accounts[0].address;
+      console.log('[wallet] Already authorized:', addr);
+      addTickerLine(`Wallet detected: ${wallet.name} (${shorten(addr)})`);
+      return addr;
+    }
+
+    // Request connection
+    const connectFeature = wallet.features?.['standard:connect'];
+    if (!connectFeature) {
+      console.log('[wallet] Wallet lacks standard:connect feature');
+      return null;
+    }
+
+    addTickerLine(`Requesting ${wallet.name} authorization...`);
+    const { accounts } = await connectFeature.connect();
+    if (accounts?.length > 0) {
+      const addr = accounts[0].address;
+      console.log('[wallet] Connected:', addr);
+      addTickerLine(`${wallet.name} connected: ${shorten(addr)}`);
+      return addr;
+    }
+
+    addTickerLine('Wallet connection declined');
+    return null;
+  } catch (err) {
+    console.log('[wallet] Connect failed:', err.message);
+    return null;
+  }
 }
 
 async function identifyPlayer(wallet) {
