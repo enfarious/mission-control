@@ -7,9 +7,8 @@ export function createThreatManager(queries: Queries) {
     threat: Threat;
     isNew: boolean;
   } {
-    const wallet = "0x" + kill.killerCharacterId.toString(16).padStart(40, "0");
-    const timestamp = Number(kill.killTimestamp);
-    const victimHex = "0x" + kill.victimCharacterId.toString(16).padStart(40, "0");
+    const wallet = kill.killerId;
+    const timestamp = kill.killTimestamp;
 
     const existing = queries.getThreat(wallet);
     const isNew = !existing;
@@ -17,10 +16,10 @@ export function createThreatManager(queries: Queries) {
     queries.insertThreat(
       wallet,
       timestamp,
-      `Destroyed entity ${victimHex.slice(0, 10)}... at ${new Date(timestamp * 1000).toISOString()}`
+      `Destroyed ${kill.victimId.slice(0, 10)}... (${kill.lossType}) at ${new Date(timestamp * 1000).toISOString()}`
     );
 
-    queries.insertEvent("kill", kill, undefined, undefined);
+    queries.insertEvent("kill", kill);
 
     const threat = queries.getThreat(wallet)!;
     return { wallet, threat, isNew };

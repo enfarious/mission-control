@@ -28,6 +28,7 @@
     overflow: hidden;
   }
 
+  /* --- Header --- */
   header {
     background: var(--panel);
     border-bottom: 1px solid var(--border);
@@ -35,6 +36,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 16px;
   }
 
   header h1 {
@@ -45,14 +47,29 @@
     text-shadow: 0 0 10px var(--glow-dim);
   }
 
-  #status {
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
     font-size: 12px;
-    color: var(--glow-dim);
   }
 
-  #status.connected { color: var(--glow); }
-  #status.disconnected { color: var(--danger); }
+  #wallet-display {
+    color: var(--text);
+    opacity: 0.7;
+  }
 
+  #llm-status {
+    color: var(--glow-dim);
+    cursor: pointer;
+  }
+  #llm-status:hover { color: var(--glow); }
+
+  #ws-status { color: var(--glow-dim); }
+  #ws-status.connected { color: var(--glow); }
+  #ws-status.disconnected { color: var(--danger); }
+
+  /* --- Main Layout --- */
   .container {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -92,7 +109,7 @@
     padding: 8px;
   }
 
-  /* Threat Registry */
+  /* --- Threat Registry --- */
   .threat {
     padding: 10px 12px;
     border: 1px solid var(--border);
@@ -131,12 +148,9 @@
   .threat-level.hostile { background: #ff8800; color: #000; }
   .threat-level.noted { background: var(--glow-dim); color: #000; }
 
-  .threat-meta {
-    font-size: 11px;
-    color: #666;
-  }
+  .threat-meta { font-size: 11px; color: #666; }
 
-  /* Chat Log */
+  /* --- Chat --- */
   .chat-entry {
     padding: 6px 10px;
     margin-bottom: 4px;
@@ -170,12 +184,15 @@
   .chat-speaker.player { color: #888; }
   .chat-speaker.system { color: var(--danger); }
 
-  .chat-text {
-    color: var(--text-bright);
-    line-height: 1.4;
+  .chat-text { color: var(--text-bright); line-height: 1.4; }
+
+  #typing-indicator {
+    padding: 6px 10px;
+    color: var(--glow-dim);
+    font-style: italic;
+    display: none;
   }
 
-  /* Chat Input */
   .chat-input-area {
     padding: 10px;
     border-top: 1px solid var(--border);
@@ -196,6 +213,7 @@
   }
 
   .chat-input-area input:focus { border-color: var(--glow-dim); }
+  .chat-input-area input:disabled { opacity: 0.4; }
 
   .chat-input-area button {
     background: var(--border);
@@ -210,6 +228,104 @@
   }
 
   .chat-input-area button:hover { background: var(--glow-dim); color: #000; }
+  .chat-input-area button:disabled { opacity: 0.4; cursor: default; }
+
+  /* --- Connect Modal --- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  .modal-overlay.hidden { display: none; }
+
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--glow-dim);
+    border-radius: 6px;
+    padding: 28px 32px;
+    width: 420px;
+    max-width: 90vw;
+    box-shadow: 0 0 40px rgba(0, 255, 65, 0.1);
+  }
+
+  .modal h2 {
+    color: var(--glow);
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+
+  .modal p.subtitle {
+    color: #666;
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+
+  .modal label {
+    display: block;
+    color: var(--text);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    margin-top: 14px;
+  }
+
+  .modal label:first-of-type { margin-top: 0; }
+
+  .modal select,
+  .modal input[type="text"],
+  .modal input[type="password"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-bright);
+    padding: 8px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    border-radius: 3px;
+    outline: none;
+  }
+
+  .modal select:focus,
+  .modal input:focus { border-color: var(--glow-dim); }
+
+  .modal select option { background: var(--bg); }
+
+  .modal-actions {
+    margin-top: 22px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .modal-actions button {
+    background: var(--border);
+    color: var(--glow);
+    border: 1px solid var(--glow-dim);
+    padding: 8px 20px;
+    font-family: inherit;
+    font-size: 12px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+
+  .modal-actions button:hover { background: var(--glow-dim); color: #000; }
+
+  .modal-actions button.danger {
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+  .modal-actions button.danger:hover { background: var(--danger); color: #000; }
+
+  .field-hidden { display: none; }
 
   @keyframes flash {
     0% { background: rgba(0, 255, 65, 0.15); }
@@ -229,11 +345,48 @@
 </style>
 </head>
 <body>
+
+<!-- Connect Modal -->
+<div class="modal-overlay" id="connect-modal">
+  <div class="modal">
+    <h2>Neural Link Configuration</h2>
+    <p class="subtitle">Connect an LLM provider to interface with GladOS. Your key stays in your browser.</p>
+
+    <label for="llm-provider">Provider</label>
+    <select id="llm-provider">
+      <option value="anthropic">Anthropic (Claude)</option>
+      <option value="openai">OpenAI</option>
+      <option value="local">Local (LM Studio / Ollama)</option>
+    </select>
+
+    <label for="llm-api-key" id="api-key-label">API Key</label>
+    <input type="password" id="llm-api-key" placeholder="sk-ant-..." autocomplete="off" />
+
+    <div id="base-url-field" class="field-hidden">
+      <label for="llm-base-url">Base URL</label>
+      <input type="text" id="llm-base-url" placeholder="http://localhost:1234/v1" />
+    </div>
+
+    <label for="llm-model">Model</label>
+    <input type="text" id="llm-model" placeholder="claude-sonnet-4-20250514" />
+
+    <div class="modal-actions">
+      <button id="connect-btn">Connect</button>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
 <header>
   <h1>Mission Control</h1>
-  <span id="status" class="disconnected">DISCONNECTED</span>
+  <div class="header-right">
+    <span id="wallet-display"></span>
+    <span id="llm-status" title="Click to configure LLM">NO LLM</span>
+    <span id="ws-status" class="disconnected">OFFLINE</span>
+  </div>
 </header>
 
+<!-- Main -->
 <div class="container">
   <div class="panel">
     <div class="panel-header">
@@ -251,162 +404,424 @@
       <span class="count" id="chat-count">0</span>
     </div>
     <div class="panel-body" id="chat-log">
-      <div class="empty-state">Awaiting communications...</div>
+      <div class="empty-state">Connect an LLM provider to speak with GladOS.</div>
     </div>
+    <div id="typing-indicator">GladOS is processing your request...</div>
     <div class="chat-input-area">
-      <input type="text" id="chat-input" placeholder="Speak to GladOS..." autocomplete="off" />
-      <button id="chat-send">Transmit</button>
+      <input type="text" id="chat-input" placeholder="Speak to GladOS..." autocomplete="off" disabled />
+      <button id="chat-send" disabled>Transmit</button>
     </div>
   </div>
 </div>
 
 <script>
-  const threatList = document.getElementById('threat-list');
-  const chatLog = document.getElementById('chat-log');
-  const chatInput = document.getElementById('chat-input');
-  const chatSend = document.getElementById('chat-send');
-  const statusEl = document.getElementById('status');
-  const threatCount = document.getElementById('threat-count');
-  const chatCount = document.getElementById('chat-count');
+// === DOM refs ===
+const $modal = document.getElementById('connect-modal');
+const $provider = document.getElementById('llm-provider');
+const $apiKey = document.getElementById('llm-api-key');
+const $apiKeyLabel = document.getElementById('api-key-label');
+const $baseUrlField = document.getElementById('base-url-field');
+const $baseUrl = document.getElementById('llm-base-url');
+const $model = document.getElementById('llm-model');
+const $connectBtn = document.getElementById('connect-btn');
+const $llmStatus = document.getElementById('llm-status');
+const $wsStatus = document.getElementById('ws-status');
+const $walletDisplay = document.getElementById('wallet-display');
+const $threatList = document.getElementById('threat-list');
+const $chatLog = document.getElementById('chat-log');
+const $chatInput = document.getElementById('chat-input');
+const $chatSend = document.getElementById('chat-send');
+const $threatCount = document.getElementById('threat-count');
+const $chatCount = document.getElementById('chat-count');
+const $typing = document.getElementById('typing-indicator');
 
-  let ws;
-  let msgCount = 0;
+// === State ===
+let ws = null;
+let msgCount = 0;
+let isProcessing = false;
 
-  function connect() {
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${proto}//${location.host}/ws`);
+// Parse URL params
+const params = new URLSearchParams(location.search);
+const ownerCharacterId = params.get('owner');
+const playerWallet = params.get('wallet'); // for dev/testing
 
-    ws.onopen = () => {
-      statusEl.textContent = 'ONLINE';
-      statusEl.className = 'connected';
-    };
+// === LLM Config (localStorage) ===
+const LS = {
+  get: (k) => localStorage.getItem('glados_' + k),
+  set: (k, v) => localStorage.setItem('glados_' + k, v),
+  del: (k) => localStorage.removeItem('glados_' + k),
+};
 
-    ws.onclose = () => {
-      statusEl.textContent = 'DISCONNECTED';
-      statusEl.className = 'disconnected';
-      setTimeout(connect, 2000);
-    };
+function getLLMConfig() {
+  const provider = LS.get('provider');
+  if (!provider) return null;
+  return {
+    provider,
+    apiKey: LS.get('apiKey') || '',
+    baseUrl: LS.get('baseUrl') || 'http://localhost:1234/v1',
+    model: LS.get('model') || getDefaultModel(provider),
+  };
+}
 
-    ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      switch (data.type) {
-        case 'init':
-          renderThreats(data.threats);
-          renderChatHistory(data.chat);
-          break;
-        case 'threat':
-          addThreat(data);
-          break;
-        case 'chat':
-          addChatMessage(data);
-          break;
-        case 'kill':
-          addSystemMessage(`Kill event detected: ${data.wallet || 'unknown'}`);
-          break;
-      }
-    };
+function getDefaultModel(provider) {
+  switch (provider) {
+    case 'anthropic': return 'claude-sonnet-4-20250514';
+    case 'openai': return 'gpt-4o-mini';
+    case 'local': return 'default';
+    default: return '';
+  }
+}
+
+// === Connect Modal ===
+$provider.addEventListener('change', () => {
+  const p = $provider.value;
+  $apiKeyLabel.parentElement.querySelector('#llm-api-key').placeholder =
+    p === 'anthropic' ? 'sk-ant-...' : p === 'openai' ? 'sk-...' : '';
+  $baseUrlField.classList.toggle('field-hidden', p !== 'local');
+  $apiKey.parentElement.style.display = p === 'local' ? 'none' : '';
+  $apiKeyLabel.style.display = p === 'local' ? 'none' : '';
+  $model.value = getDefaultModel(p);
+});
+
+$connectBtn.addEventListener('click', () => {
+  const provider = $provider.value;
+  const apiKey = $apiKey.value.trim();
+  const baseUrl = $baseUrl.value.trim() || 'http://localhost:1234/v1';
+  const model = $model.value.trim() || getDefaultModel(provider);
+
+  if (provider !== 'local' && !apiKey) {
+    $apiKey.style.borderColor = 'var(--danger)';
+    return;
   }
 
-  function renderThreats(threats) {
-    if (!threats.length) return;
-    threatList.innerHTML = '';
-    threats.forEach(t => addThreatEl(t, false));
-    threatCount.textContent = threats.length;
-  }
+  LS.set('provider', provider);
+  LS.set('apiKey', apiKey);
+  LS.set('baseUrl', baseUrl);
+  LS.set('model', model);
 
-  function addThreat(data) {
-    const existing = threatList.querySelector('.empty-state');
-    if (existing) existing.remove();
-    // Remove existing entry for this wallet if updating
-    const old = threatList.querySelector(`[data-wallet="${data.wallet}"]`);
-    if (old) old.remove();
-    addThreatEl(data.threat || data, true);
-    threatCount.textContent = threatList.children.length;
-  }
+  applyLLMConfig();
+  $modal.classList.add('hidden');
+});
 
-  function addThreatEl(t, isNew) {
-    const div = document.createElement('div');
-    div.className = `threat ${t.threat_level}${isNew ? ' new' : ''}`;
-    div.dataset.wallet = t.wallet;
-    const name = t.nickname ? `"${t.nickname}" (${shorten(t.wallet)})` : shorten(t.wallet);
-    div.innerHTML = `
-      <div class="threat-header">
-        <span class="threat-wallet">${name}</span>
-        <span class="threat-level ${t.threat_level}">${t.threat_level}</span>
-      </div>
-      <div class="threat-meta">
-        Incidents: ${t.hit_count} | First: ${ts(t.first_seen)} | Last: ${ts(t.last_seen)}
-      </div>
-    `;
-    threatList.prepend(div);
+$llmStatus.addEventListener('click', () => {
+  const cfg = getLLMConfig();
+  if (cfg) {
+    $provider.value = cfg.provider;
+    $apiKey.value = cfg.apiKey;
+    $baseUrl.value = cfg.baseUrl;
+    $model.value = cfg.model;
+    $provider.dispatchEvent(new Event('change'));
   }
+  $modal.classList.remove('hidden');
+});
 
-  function renderChatHistory(messages) {
-    if (!messages.length) return;
-    chatLog.innerHTML = '';
-    messages.forEach(m => addChatEl(m.speaker, m.message));
-    msgCount = messages.length;
-    chatCount.textContent = msgCount;
-    chatLog.scrollTop = chatLog.scrollHeight;
+function applyLLMConfig() {
+  const cfg = getLLMConfig();
+  if (cfg) {
+    $llmStatus.textContent = cfg.provider.toUpperCase();
+    $llmStatus.style.color = 'var(--glow)';
+    $chatInput.disabled = false;
+    $chatSend.disabled = false;
+    $chatInput.placeholder = 'Speak to GladOS...';
+  } else {
+    $llmStatus.textContent = 'NO LLM';
+    $llmStatus.style.color = 'var(--glow-dim)';
+    $chatInput.disabled = true;
+    $chatSend.disabled = true;
+    $chatInput.placeholder = 'Connect an LLM provider first...';
   }
+}
 
-  function addChatMessage(data) {
-    const existing = chatLog.querySelector('.empty-state');
-    if (existing) existing.remove();
-    addChatEl(data.speaker, data.message);
-    msgCount++;
-    chatCount.textContent = msgCount;
-    chatLog.scrollTop = chatLog.scrollHeight;
+// === Client-side LLM Caller ===
+async function callLLM(systemPrompt, history, userMessage) {
+  const cfg = getLLMConfig();
+  if (!cfg) throw new Error('No LLM configured');
+
+  const messages = [...history, { role: 'user', content: userMessage }];
+
+  if (cfg.provider === 'anthropic') {
+    return callAnthropic(cfg, systemPrompt, messages);
   }
-
-  function addSystemMessage(text) {
-    const existing = chatLog.querySelector('.empty-state');
-    if (existing) existing.remove();
-    addChatEl('system', text);
-    msgCount++;
-    chatCount.textContent = msgCount;
-    chatLog.scrollTop = chatLog.scrollHeight;
+  if (cfg.provider === 'openai') {
+    return callOpenAIProxy(cfg, systemPrompt, messages);
   }
+  return callLocal(cfg, systemPrompt, messages);
+}
 
-  function addChatEl(speaker, message) {
-    const div = document.createElement('div');
-    div.className = `chat-entry ${speaker}`;
-    const label = speaker === 'glados' ? 'GladOS' : speaker === 'system' ? 'SYSTEM' : 'PILOT';
-    div.innerHTML = `
-      <div class="chat-speaker ${speaker}">${label}</div>
-      <div class="chat-text">${escapeHtml(message)}</div>
-    `;
-    chatLog.appendChild(div);
-  }
-
-  function sendMessage() {
-    const msg = chatInput.value.trim();
-    if (!msg || !ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: 'chat', message: msg }));
-    chatInput.value = '';
-  }
-
-  chatSend.addEventListener('click', sendMessage);
-  chatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendMessage();
+async function callAnthropic(cfg, systemPrompt, messages) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': cfg.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: cfg.model,
+      max_tokens: 512,
+      system: systemPrompt,
+      messages,
+    }),
   });
 
-  function shorten(w) {
-    return w.length > 12 ? w.slice(0, 6) + '...' + w.slice(-4) : w;
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Anthropic API error (${res.status}): ${text}`);
   }
 
-  function ts(epoch) {
-    if (!epoch) return '?';
-    return new Date(epoch * 1000).toLocaleString();
+  const data = await res.json();
+  return data.content?.[0]?.text?.trim() || '[silence]';
+}
+
+async function callOpenAIProxy(cfg, systemPrompt, messages) {
+  const res = await fetch('/api/llm-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      provider: 'openai',
+      apiKey: cfg.apiKey,
+      model: cfg.model,
+      systemPrompt,
+      messages,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`OpenAI proxy error (${res.status}): ${text}`);
   }
 
-  function escapeHtml(str) {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content?.trim() || '[silence]';
+}
+
+async function callLocal(cfg, systemPrompt, messages) {
+  const res = await fetch(cfg.baseUrl + '/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: cfg.model,
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      max_tokens: 512,
+      temperature: 0.8,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Local LLM error (${res.status}): ${text}`);
   }
 
-  connect();
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content?.trim() || '[silence]';
+}
+
+// === Chat Flow ===
+async function sendMessage() {
+  const msg = $chatInput.value.trim();
+  if (!msg || isProcessing || !getLLMConfig()) return;
+
+  isProcessing = true;
+  $chatInput.value = '';
+  $chatInput.disabled = true;
+  $chatSend.disabled = true;
+
+  // Optimistic render
+  addChatEl('player', msg);
+  $typing.style.display = 'block';
+  $chatLog.scrollTop = $chatLog.scrollHeight;
+
+  try {
+    // Fetch context from server
+    const ctxUrl = '/api/context' + (playerWallet ? `?wallet=${playerWallet}` : '');
+    const ctxRes = await fetch(ctxUrl);
+    const ctx = await ctxRes.json();
+
+    // Call LLM
+    const response = await callLLM(ctx.systemPrompt, ctx.recentHistory, msg);
+
+    // Render response
+    $typing.style.display = 'none';
+    addChatEl('glados', response);
+    msgCount += 2;
+    $chatCount.textContent = msgCount;
+    $chatLog.scrollTop = $chatLog.scrollHeight;
+
+    // Log to server (fires WS broadcast to other clients)
+    fetch('/api/chat/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { speaker: 'player', message: msg, wallet: playerWallet || undefined },
+          { speaker: 'glados', message: response },
+        ],
+      }),
+    }).catch(() => {}); // fire-and-forget
+  } catch (err) {
+    $typing.style.display = 'none';
+    addChatEl('system', `Error: ${err.message}`);
+    console.error('[glados]', err);
+  } finally {
+    isProcessing = false;
+    $chatInput.disabled = false;
+    $chatSend.disabled = false;
+    $chatInput.focus();
+  }
+}
+
+$chatSend.addEventListener('click', sendMessage);
+$chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendMessage();
+});
+
+// === WebSocket ===
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+  ws.onopen = () => {
+    $wsStatus.textContent = 'ONLINE';
+    $wsStatus.className = 'connected';
+  };
+
+  ws.onclose = () => {
+    $wsStatus.textContent = 'OFFLINE';
+    $wsStatus.className = 'disconnected';
+    setTimeout(connectWS, 2000);
+  };
+
+  ws.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    switch (data.type) {
+      case 'init':
+        renderThreats(data.threats);
+        renderChatHistory(data.chat);
+        break;
+      case 'threat':
+        addThreat(data);
+        break;
+      case 'chat':
+        // Only render if not our own message (avoid duplicates)
+        if (!isProcessing) {
+          addChatMessage(data);
+        }
+        break;
+      case 'kill':
+        addSystemMessage(`Kill event detected: ${data.wallet || 'unknown'}`);
+        break;
+    }
+  };
+}
+
+// === Render Helpers ===
+function renderThreats(threats) {
+  if (!threats.length) return;
+  $threatList.innerHTML = '';
+  threats.forEach(t => addThreatEl_dom(t, false));
+  $threatCount.textContent = threats.length;
+}
+
+function addThreat(data) {
+  const existing = $threatList.querySelector('.empty-state');
+  if (existing) existing.remove();
+  const old = $threatList.querySelector(`[data-wallet="${data.wallet}"]`);
+  if (old) old.remove();
+  addThreatEl_dom(data.threat || data, true);
+  $threatCount.textContent = $threatList.children.length;
+}
+
+function addThreatEl_dom(t, isNew) {
+  const div = document.createElement('div');
+  div.className = `threat ${t.threat_level}${isNew ? ' new' : ''}`;
+  div.dataset.wallet = t.wallet;
+  const name = t.nickname ? `"${t.nickname}" (${shorten(t.wallet)})` : shorten(t.wallet);
+  div.innerHTML = `
+    <div class="threat-header">
+      <span class="threat-wallet">${name}</span>
+      <span class="threat-level ${t.threat_level}">${t.threat_level}</span>
+    </div>
+    <div class="threat-meta">
+      Incidents: ${t.hit_count} | First: ${ts(t.first_seen)} | Last: ${ts(t.last_seen)}
+    </div>
+  `;
+  $threatList.prepend(div);
+}
+
+function renderChatHistory(messages) {
+  if (!messages.length) return;
+  $chatLog.innerHTML = '';
+  messages.forEach(m => addChatEl(m.speaker, m.message));
+  msgCount = messages.length;
+  $chatCount.textContent = msgCount;
+  $chatLog.scrollTop = $chatLog.scrollHeight;
+}
+
+function addChatMessage(data) {
+  const existing = $chatLog.querySelector('.empty-state');
+  if (existing) existing.remove();
+  addChatEl(data.speaker, data.message);
+  msgCount++;
+  $chatCount.textContent = msgCount;
+  $chatLog.scrollTop = $chatLog.scrollHeight;
+}
+
+function addSystemMessage(text) {
+  const existing = $chatLog.querySelector('.empty-state');
+  if (existing) existing.remove();
+  addChatEl('system', text);
+  msgCount++;
+  $chatCount.textContent = msgCount;
+  $chatLog.scrollTop = $chatLog.scrollHeight;
+}
+
+function addChatEl(speaker, message) {
+  const existing = $chatLog.querySelector('.empty-state');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.className = `chat-entry ${speaker}`;
+  const label = speaker === 'glados' ? 'GladOS' : speaker === 'system' ? 'SYSTEM' : 'PILOT';
+  div.innerHTML = `
+    <div class="chat-speaker ${speaker}">${label}</div>
+    <div class="chat-text">${escapeHtml(message)}</div>
+  `;
+  $chatLog.appendChild(div);
+}
+
+function shorten(w) {
+  return w && w.length > 12 ? w.slice(0, 6) + '...' + w.slice(-4) : w || '?';
+}
+
+function ts(epoch) {
+  if (!epoch) return '?';
+  return new Date(epoch * 1000).toLocaleString();
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// === Init ===
+if (playerWallet) {
+  $walletDisplay.textContent = shorten(playerWallet);
+}
+if (ownerCharacterId) {
+  $walletDisplay.textContent = ($walletDisplay.textContent ? $walletDisplay.textContent + ' | ' : '') + 'Owner: ' + shorten(ownerCharacterId);
+}
+
+// Check if already configured
+const existing = getLLMConfig();
+if (existing) {
+  $modal.classList.add('hidden');
+  applyLLMConfig();
+} else {
+  $provider.dispatchEvent(new Event('change'));
+}
+
+connectWS();
 </script>
 </body>
 </html>
