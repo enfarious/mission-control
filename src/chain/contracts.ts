@@ -2,7 +2,7 @@
 // World contracts package from Published.toml (testnet environment)
 export const WORLD_PACKAGE =
   process.env.WORLD_PACKAGE ??
-  "0x33226d2eedda428eb7e1a56faf525bd5300f9394a5d61ffbbbcb3993d45a7145";
+  "0x28b497559d65ab320d9da4613bf2498d5946b2c0ae3597ccfda3072ce127448c";
 
 export const SUI_NETWORK = (process.env.SUI_NETWORK ?? "testnet") as "testnet" | "mainnet" | "devnet";
 

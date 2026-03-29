@@ -11,6 +11,49 @@ import {
   type CharacterData,
 } from "./contracts.ts";
 
+const WORLD_API = "https://world-api-stillness.live.tech.evefrontier.com";
+
+// --- Tribe Name Cache ---
+let tribeCache: Map<number, string> | null = null;
+let tribeCachePromise: Promise<Map<number, string>> | null = null;
+
+async function getTribeMap(): Promise<Map<number, string>> {
+  if (tribeCache) return tribeCache;
+  if (tribeCachePromise) return tribeCachePromise;
+
+  tribeCachePromise = (async () => {
+    const map = new Map<number, string>();
+    try {
+      let offset = 0;
+      const limit = 500;
+      while (true) {
+        const res = await fetch(`${WORLD_API}/v2/tribes?limit=${limit}&offset=${offset}`);
+        if (!res.ok) break;
+        const json = await res.json() as any;
+        const items: any[] = json.data ?? [];
+        for (const t of items) map.set(t.id, t.name);
+        const total = json.metadata?.total ?? 0;
+        offset += items.length;
+        if (items.length === 0 || offset >= total) break;
+      }
+      console.log(`[assembly] Cached ${map.size} tribe names`);
+    } catch (err) {
+      console.error("[assembly] Tribe fetch failed:", err);
+    }
+    tribeCache = map;
+    // Refresh after 1 hour
+    setTimeout(() => { tribeCache = null; tribeCachePromise = null; }, 60 * 60 * 1000);
+    return map;
+  })();
+
+  return tribeCachePromise;
+}
+
+export async function resolveTribeName(tribeId: number): Promise<string> {
+  const map = await getTribeMap();
+  return map.get(tribeId) ?? `Tribe ${tribeId}`;
+}
+
 let client: SuiJsonRpcClient | null = null;
 
 function getClient(): SuiJsonRpcClient {
@@ -22,14 +65,17 @@ function getClient(): SuiJsonRpcClient {
   return client;
 }
 
-async function gql(query: string): Promise<any> {
+async function gql(query: string, label?: string): Promise<any> {
   const res = await fetch(SUI_GRAPHQL_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
   });
-  const data = await res.json();
-  return (data as any)?.data;
+  const raw = await res.json() as any;
+  if (raw?.errors) {
+    console.error(`[gql${label ? ` ${label}` : ""}] errors:`, JSON.stringify(raw.errors));
+  }
+  return raw?.data;
 }
 
 // --- Assembly Status ---
@@ -67,57 +113,70 @@ export async function fetchAssemblyStatus(assemblyId: string): Promise<AssemblyS
 }
 
 // --- Character Lookup ---
+// Strategy:
+//  1. Query PlayerProfile (owned by the wallet) to get character_id address
+//  2. Fetch Character object by that address for name + tribe_id
+// PlayerProfile is wallet-owned so this is an O(1) lookup, not a scan.
 
 export async function fetchCharacterByWallet(wallet: string): Promise<CharacterData | null> {
   try {
-    // Query for PlayerProfile objects owned by this wallet
-    const data = await gql(`{
+    const profileType = `${WORLD_PACKAGE}::character::PlayerProfile`;
+
+    // Step 1: Find PlayerProfile owned by this wallet
+    const profileData = await gql(`{
       address(address: "${wallet}") {
-        objects(filter: { type: "${WORLD_PACKAGE}::character::Character" }, first: 1) {
+        objects(filter: { type: "${profileType}" }, first: 1) {
           nodes {
-            address
-            asMoveObject {
-              contents {
-                json
-              }
+            contents {
+              json
             }
           }
         }
       }
-    }`);
+    }`, "PlayerProfile");
 
-    const node = data?.address?.objects?.nodes?.[0];
-    if (!node) {
-      // Try looking for any character-like object
-      return await fetchCharacterFallback(wallet);
+    const profileNode = profileData?.address?.objects?.nodes?.[0];
+    if (!profileNode) {
+      console.log(`[assembly] No PlayerProfile found for ${shortenWallet(wallet)}`);
+      return { characterId: "", name: "", tribeId: 0, wallet };
     }
 
-    const json = node.asMoveObject?.contents?.json;
-    return {
-      characterId: node.address,
-      name: json?.metadata?.name ?? json?.name ?? shortenWallet(wallet),
-      tribeId: json?.tribe_id ?? 0,
-      wallet,
-    };
+    const profileJson = profileNode.contents?.json as any;
+    // character_id can be either a plain address string or an object { address }
+    const charAddr: string =
+      profileJson?.character_id?.address ??
+      profileJson?.character_id ??
+      "";
+
+    if (!charAddr) {
+      console.log(`[assembly] PlayerProfile has no character_id for ${shortenWallet(wallet)}`);
+      return { characterId: "", name: "", tribeId: 0, wallet };
+    }
+
+    // Step 2: Fetch Character object by its address
+    // object() returns generic Object type, so we need asMoveObject to get contents
+    const charData = await gql(`{
+      object(address: "${charAddr}") {
+        asMoveObject {
+          contents {
+            json
+          }
+        }
+      }
+    }`, "Character");
+
+    const charJson = charData?.object?.asMoveObject?.contents?.json as any;
+    const name = charJson?.metadata?.name ?? charJson?.name ?? "";
+    const tribeId = charJson?.tribe_id ?? 0;
+    const characterItemId = charJson?.key?.item_id ?? charAddr;
+
+    console.log(`[assembly] Resolved ${shortenWallet(wallet)} → "${name}" (tribe: ${tribeId})`);
+
+    return { characterId: characterItemId, name, tribeId, wallet };
   } catch (err) {
     console.error("[assembly] Character lookup failed:", err);
-    return {
-      characterId: "",
-      name: shortenWallet(wallet),
-      tribeId: 0,
-      wallet,
-    };
+    return { characterId: "", name: "", tribeId: 0, wallet };
   }
-}
-
-async function fetchCharacterFallback(wallet: string): Promise<CharacterData | null> {
-  // Fallback: just return a stub with the wallet
-  return {
-    characterId: "",
-    name: shortenWallet(wallet),
-    tribeId: 0,
-    wallet,
-  };
 }
 
 // --- Kill Stats ---

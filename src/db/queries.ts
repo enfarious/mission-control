@@ -152,15 +152,16 @@ export function createQueries(db: Database) {
     },
 
     // --- Tribes ---
-    upsertTribe: (tribeId: number, memberKills: number, memberDeaths: number) => {
+    upsertTribe: (tribeId: number, memberKills: number, memberDeaths: number, tribeName?: string) => {
       db.prepare(`
-        INSERT INTO tribes (tribe_id, member_visits, total_kills, total_deaths, reputation)
-        VALUES (?, 1, ?, ?, 50)
+        INSERT INTO tribes (tribe_id, name, member_visits, total_kills, total_deaths, reputation)
+        VALUES (?, ?, 1, ?, ?, 50)
         ON CONFLICT(tribe_id) DO UPDATE SET
+          name = COALESCE(excluded.name, name),
           member_visits = member_visits + 1,
           total_kills = total_kills + excluded.total_kills,
           total_deaths = total_deaths + excluded.total_deaths
-      `).run(tribeId, memberKills, memberDeaths);
+      `).run(tribeId, tribeName ?? null, memberKills, memberDeaths);
     },
 
     getTribe: (tribeId: number) =>

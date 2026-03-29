@@ -1315,7 +1315,7 @@ async function sendMessage() {
       body: JSON.stringify({
         messages: [
           { speaker: 'player', message: msg, wallet: playerWallet || undefined },
-          { speaker: 'ai', message: response },
+          { speaker: 'ai', message: response, wallet: playerWallet || undefined },
         ],
       }),
     }).catch(() => {}); // fire-and-forget
@@ -1723,19 +1723,24 @@ async function identifyPlayer(wallet) {
     const res = await fetch(`/api/player?wallet=${wallet}`);
     const data = await res.json();
     if (data && !data.error) {
-      const tribeLabel = data.tribe
-        ? `Tribe #${data.tribeId} (rep: ${data.tribe.reputation}/100)`
+      const tribeLabel = data.tribeName
+        ? (data.tribe ? `${data.tribeName} (rep: ${data.tribe.reputation}/100)` : data.tribeName)
         : data.tribeId ? `Tribe #${data.tribeId}` : 'Unaffiliated';
 
+      const displayName = data.name || null;
+
       setSubject({
-        name: data.name || shorten(wallet),
+        name: displayName || shorten(wallet),
         wallet,
         tribe: tribeLabel,
         kills: `${data.kills ?? 0}k / ${data.deaths ?? 0}d`,
         threat: data.onThreatRegistry ? 'ON FILE' : 'CLEAR',
       });
 
-      addTickerLine(`Subject: ${data.name || shorten(wallet)} | Visit #${data.visitCount} | Rep: ${data.reputation}/100`);
+      if (!displayName) {
+        addTickerLine(`Subject: ${shorten(wallet)} — no character record found`);
+      }
+      addTickerLine(`Subject: ${displayName || shorten(wallet)} | Visit #${data.visitCount} | Rep: ${data.reputation}/100`);
 
       if (data.kills > 0) {
         addTickerLine(`Kill record: ${data.kills} kills, ${data.deaths} deaths`);

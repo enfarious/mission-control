@@ -5,7 +5,7 @@ import type { Queries } from "../db/queries.ts";
 import type { ThreatManager } from "../agent/threats.ts";
 import { assembleContext, AI_NAME, AI_TAGLINE } from "../agent/glados.ts";
 import { executeAction, type AIAction } from "../chain/actions.ts";
-import { fetchAssemblyStatus, fetchCharacterByWallet, fetchKillStats } from "../chain/assembly.ts";
+import { fetchAssemblyStatus, fetchCharacterByWallet, fetchKillStats, resolveTribeName } from "../chain/assembly.ts";
 
 const HTML_PATH = resolve(import.meta.dir, "index.html");
 
@@ -65,12 +65,12 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
         return Response.json(queries.getAllThreats(), { headers: CORS_HEADERS });
       }
 
-      // GET /api/chat — optionally filtered by wallet
+      // GET /api/chat — filtered by wallet (AI messages are wallet-scoped too)
       if (url.pathname === "/api/chat" && req.method === "GET") {
         const wallet = url.searchParams.get("wallet");
         const chat = wallet
-          ? queries.getRecentChat(50).filter(
-              (c) => c.wallet === wallet || c.speaker === "ai" || c.speaker === "glados" || c.speaker === "system"
+          ? queries.getRecentChat(200).filter(
+              (c) => c.wallet === wallet || c.speaker === "system"
             )
           : queries.getRecentChat(50);
         return Response.json(chat, { headers: CORS_HEADERS });
@@ -203,21 +203,31 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
           return Response.json({ error: "Missing ?wallet param" }, { status: 400, headers: CORS_HEADERS });
         }
         const character = await fetchCharacterByWallet(wallet);
+        console.log(`[player] ${wallet.slice(0, 10)}... → name="${character?.name}" characterId="${character?.characterId}" tribe=${character?.tribeId}`);
         const stats = character?.characterId
           ? await fetchKillStats(character.characterId)
           : { kills: 0, deaths: 0 };
 
+        // Resolve tribe name before writing to DB
+        const tribeName = character?.tribeId ? await resolveTribeName(character.tribeId) : null;
+
         // Record visit + update tribe stats
         queries.upsertVisitor(wallet, {
-          characterId: character?.characterId,
-          name: character?.name,
-          tribeId: character?.tribeId,
+          characterId: character?.characterId || undefined,
+          name: character?.name || undefined,   // don't overwrite with empty string
+          tribeId: character?.tribeId || undefined,
           kills: stats.kills,
           deaths: stats.deaths,
         });
 
         if (character?.tribeId) {
-          queries.upsertTribe(character.tribeId, stats.kills, stats.deaths);
+          queries.upsertTribe(character.tribeId, stats.kills, stats.deaths, tribeName ?? undefined);
+        }
+
+        // If this visitor has kills, register them as a known threat on identification
+        if (stats.kills > 0 && !queries.getThreat(wallet)) {
+          threats.registerVisitorThreat(wallet, stats.kills);
+          bus.emit("threat", { wallet, threat: queries.getThreat(wallet), isNew: true });
         }
 
         // Enrich with local reputation data
@@ -228,6 +238,7 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
         return Response.json({
           ...character,
           ...stats,
+          tribeName,
           visitCount: visitor?.visit_count ?? 1,
           reputation: visitor?.reputation ?? 50,
           aiNotes: visitor?.ai_notes,
@@ -235,6 +246,7 @@ export function startDashboard(deps: DashboardDeps, port = 3000) {
           threatLevel: threat?.threat_level,
           tribe: tribe ? {
             tribeId: tribe.tribe_id,
+            tribeName,
             memberVisits: tribe.member_visits,
             totalKills: tribe.total_kills,
             totalDeaths: tribe.total_deaths,

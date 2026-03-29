@@ -109,8 +109,8 @@ export function assembleContext(
 ): ContextPayload {
   const threats = queries.getAllThreats();
   const recentChat = playerWallet
-    ? queries.getRecentChat(20).filter(
-        (c) => c.wallet === playerWallet || c.speaker === "ai" || c.speaker === "glados" || c.speaker === "system"
+    ? queries.getRecentChat(100).filter(
+        (c) => c.wallet === playerWallet || c.speaker === "system"
       )
     : queries.getRecentChat(10);
 
@@ -169,7 +169,8 @@ export function buildContext(
     if (visitor.ai_notes) ctx += `Your previous notes on this visitor: ${visitor.ai_notes}\n`;
 
     if (tribe) {
-      ctx += `\n--- VISITOR'S TRIBE (ID: ${tribe.tribe_id}) ---\n`;
+      const tribeLabel = tribe.name ? `${tribe.name} (ID: ${tribe.tribe_id})` : `ID: ${tribe.tribe_id}`;
+      ctx += `\n--- VISITOR'S TRIBE (${tribeLabel}) ---\n`;
       ctx += `Members who have visited: ${tribe.member_visits}\n`;
       ctx += `Collective kills: ${tribe.total_kills} | Deaths: ${tribe.total_deaths}\n`;
       ctx += `Tribe reputation: ${tribe.reputation}/100\n`;

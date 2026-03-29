@@ -33,11 +33,19 @@ export function createThreatManager(queries: Queries) {
     return queries.getAllThreats();
   }
 
+  function registerVisitorThreat(wallet: string, kills: number) {
+    queries.insertThreat(
+      wallet,
+      Math.floor(Date.now() / 1000),
+      `Identified on visit — ${kills} recorded kills`
+    );
+  }
+
   function assignNickname(wallet: string, nickname: string) {
     queries.updateNickname(wallet, nickname);
   }
 
-  return { processKill, getThreatLevel, getAllThreats, assignNickname };
+  return { processKill, getThreatLevel, getAllThreats, assignNickname, registerVisitorThreat };
 }
 
 export type ThreatManager = ReturnType<typeof createThreatManager>;
