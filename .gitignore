@@ -37,3 +37,6 @@ glados.db-wal
 
 # Finder (MacOS) folder config
 .DS_Store
+/.claude
+/.claude
+.claude/settings.local.json

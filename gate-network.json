@@ -1,0 +1,50 @@
+{
+  "scrapedAt": "2026-03-28T23:19:28.351Z",
+  "stats": {
+    "totalGates": 5,
+    "activeLinks": 2,
+    "linkedEvents": 3,
+    "unlinkedEvents": 1
+  },
+  "links": [
+    {
+      "from": "0xdc4a1f48954730dec25af6e65b2576ea8bcab57a013fed5c6507d25708d0afc9",
+      "to": "0x5c5b90bbc510e68ee9efb3371d0fede7f11a978c3d2b1a5ed4f31bf8c45b6378",
+      "fromItem": "1000002258310",
+      "toItem": "1000002148935"
+    },
+    {
+      "from": "0x14b18f1cde3a5502720ddfc97482b51c0f732c6aa34ae0e092419d4c79c35b9a",
+      "to": "0xd5d3c7d5d1136f9eb36c0718da01a9517dc9e80875bfe8d56d1251c50a8a93de",
+      "fromItem": "1000002679594",
+      "toItem": "1000002445303"
+    }
+  ],
+  "allGates": [
+    {
+      "gateId": "0xdc4a1f48954730dec25af6e65b2576ea8bcab57a013fed5c6507d25708d0afc9",
+      "itemId": "1000002258310",
+      "linkedTo": "0x5c5b90bbc510e68ee9efb3371d0fede7f11a978c3d2b1a5ed4f31bf8c45b6378"
+    },
+    {
+      "gateId": "0x5c5b90bbc510e68ee9efb3371d0fede7f11a978c3d2b1a5ed4f31bf8c45b6378",
+      "itemId": "1000002148935",
+      "linkedTo": "0xdc4a1f48954730dec25af6e65b2576ea8bcab57a013fed5c6507d25708d0afc9"
+    },
+    {
+      "gateId": "0x900997b00193241f18571f3ea6973e3a91081260607688d6d5146b87c18cb9fc",
+      "itemId": "1000002390811",
+      "linkedTo": null
+    },
+    {
+      "gateId": "0xd5d3c7d5d1136f9eb36c0718da01a9517dc9e80875bfe8d56d1251c50a8a93de",
+      "itemId": "1000002445303",
+      "linkedTo": null
+    },
+    {
+      "gateId": "0x14b18f1cde3a5502720ddfc97482b51c0f732c6aa34ae0e092419d4c79c35b9a",
+      "itemId": "1000002679594",
+      "linkedTo": "0xd5d3c7d5d1136f9eb36c0718da01a9517dc9e80875bfe8d56d1251c50a8a93de"
+    }
+  ]
+}
